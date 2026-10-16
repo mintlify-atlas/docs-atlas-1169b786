@@ -1,0 +1,212 @@
+---
+title: "Map File Formats: Tanks XML and .lvl Binary"
+sidebarTitle: "File Formats"
+description: "SkillTanki Editor supports two map formats: Tanks XML (game-native) and the .lvl binary format from the original AIR editor. Learn the structure of both."
+---
+
+The SkillTanki Editor works with two distinct file formats. **Tanks XML** is the format the game itself reads and is the primary interchange format for publishing maps. **`.lvl`** is the editor's own binary format, directly compatible with files produced by the original 2010 AIR editor, and is suited for round-tripping work-in-progress maps between editing sessions. Understanding both formats helps when troubleshooting imports, writing external tools, or auditing what ends up in a shipped map.
+
+---
+
+## Tanks XML
+
+Tanks XML is the game-native map format. A file exported from the editor loads directly in the SkillTanki game without any conversion step. Element order, attribute names, and number formatting match the shipped maps byte for byte.
+
+### Document structure
+
+```xml
+<map version="1.0">
+  <static-geometry>
+    <!-- <prop> elements — tiles and sprites -->
+  </static-geometry>
+  <collision-geometry>
+    <!-- <box>, <plane>, <triangle> primitives -->
+  </collision-geometry>
+  <spawn-points>
+    <!-- <spawn-point> elements -->
+  </spawn-points>
+  <bonus-regions>
+    <!-- <bonus-region> elements -->
+  </bonus-regions>
+  <!-- <ctf-flags> is appended lazily if any flag props are present -->
+</map>
+```
+
+The section order is fixed: `static-geometry` first, then `collision-geometry`, then `spawn-points`, then `bonus-regions`. The `<ctf-flags>` section is only written when the map contains at least one flag prop; it is appended to the root element after the others.
+
+### Prop elements (`<static-geometry>`)
+
+Every tile and sprite in the map becomes a `<prop>` element:
+
+```xml
+<prop library-name="Buildings" group-name="Hangars" name="hangar_1"
+      mirror="false" free="false">
+  <rotation>
+    <z>1.570796</z>
+  </rotation>
+  <position>
+    <x>250.000</x>
+    <y>-500.000</y>
+    <z>0.000</z>
+  </position>
+  <texture-name>hangar_1_green</texture-name>
+</prop>
+```
+
+| Attribute / element | Description |
+|---|---|
+| `library-name` | The prop library (e.g. `Buildings`, `Land`, `Elements`) |
+| `group-name` | The group within the library |
+| `name` | The prop's mesh name within the group |
+| `mirror` | Whether the texture is mirrored horizontally (`true`/`false`) |
+| `free` | Whether the prop ignores the occupancy grid (`true`/`false`) |
+| `<rotation><z>` | Z-axis rotation in radians, **6 decimal places** |
+| `<position><x>`, `<y>`, `<z>` | Position in simulation units, **3 decimal places** |
+| `<texture-name>` | The active texture variant name |
+
+<Note>
+The number formatting is significant: positions are written with exactly 3 decimal places and rotations with exactly 6. This matches the shipped maps byte for byte and is enforced by the exporter.
+</Note>
+
+### Spawn point elements (`<spawn-points>`)
+
+```xml
+<spawn-point type="dm" free="false">
+  <position>
+    <x>0.000</x>
+    <y>0.000</y>
+    <z>150.000</z>
+  </position>
+  <rotation>
+    <z>0.000000</z>
+  </rotation>
+</spawn-point>
+```
+
+The `type` attribute carries the spawn point's name (e.g. `dm` for deathmatch). Unlike tile `<prop>` elements, spawn points have no `library-name` or `group-name` in the XML; the editor stores them internally under the synthetic `Functional` library.
+
+### Bonus region elements (`<bonus-regions>`)
+
+```xml
+<bonus-region name="bonus_1" free="false">
+  <position>
+    <x>500.000</x>
+    <y>-250.000</y>
+    <z>0.000</z>
+  </position>
+  <rotation>
+    <z>0.000000</z>
+  </rotation>
+  <min>
+    <x>400.000</x>
+    <y>-350.000</y>
+    <z>-50.000</z>
+  </min>
+  <max>
+    <x>600.000</x>
+    <y>-150.000</y>
+    <z>50.000</z>
+  </max>
+  <bonus-type>health</bonus-type>
+  <bonus-type>armor</bonus-type>
+</bonus-region>
+```
+
+The `<min>` and `<max>` children are absolute world positions that define the pickup trigger volume. `<bonus-type>` children enumerate what bonuses spawn in the region.
+
+### Collision geometry (`<collision-geometry>`)
+
+Collision primitives are derived at export time from the `box*`, `plane*`, and `tri*` named child meshes inside each prop's `.3ds` file. Three primitive types are produced:
+
+| Prefix | XML element | Description |
+|---|---|---|
+| `box*` | `<box>` | Axis-aligned box, transformed by the prop's rotation and position |
+| `plane*` | `<plane>` | Infinite half-space plane |
+| `tri*` | `<triangle>` | Arbitrary triangle — new in this port |
+
+<Info>
+Triangle primitives (`tri*` meshes → `<triangle>` elements) are new to this TypeScript port. The original 2010 AIR exporter silently dropped them, which broke every ramp and bridge in the shipped maps. The SkillTanki Editor correctly exports triangles, making ramps and bridges fully drivable.
+</Info>
+
+Each prop's collision primitives are transformed by that prop's own matrix (rotate around Z, then translate) before being written to the XML, so collision positions are always in world space.
+
+---
+
+## `.lvl` Binary Format
+
+The `.lvl` format is the editor's native binary format, used by **File → Open** and **File → Save**. It is a faithful port of the original AIR editor's `BinaryExporter`/`BinaryImporter` classes and reads files produced by the 2010 version unchanged.
+
+### Overview
+
+- **Byte order:** Big-endian throughout (matching AS3's `FileStream` default of `Endian.BIG_ENDIAN`)
+- **Header:** None
+- **Version field:** None
+- **Record count:** None — records run until end of file
+
+The stream is a flat sequence of prop records. The parser reads until no bytes remain (or fewer than 25 bytes, the minimum possible record size).
+
+### Record layout
+
+Each record encodes one prop in this fixed field order:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Field        │  Type                    │  Notes                │
+├──────────────────────────────────────────────────────────────────┤
+│  library      │  UTF (uint16 len + UTF-8)│  e.g. "Buildings"     │
+│  group        │  UTF                     │  e.g. "Hangars"       │
+│  name         │  UTF                     │  e.g. "hangar_1"      │
+│  x            │  float32 big-endian      │  simulation units     │
+│  y            │  float32 big-endian      │  simulation units     │
+│  z            │  float32 big-endian      │  simulation units     │
+│  rotationZ    │  float32 big-endian      │  radians              │
+│  free         │  bool (1 byte, 0 or 1)   │                       │
+│  textureName  │  UTF                     │  "" for non-tiles     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**UTF encoding:** each string is written as a `uint16` containing the **byte length** of the UTF-8 encoding (not the number of Unicode code units), followed immediately by that many bytes. This matches AS3's `FileStream.writeUTF` / `readUTF`.
+
+The smallest possible record is 25 bytes: four empty strings (4 × 2-byte length headers = 8 bytes), four float32s (16 bytes), one bool (1 byte).
+
+### Functional props
+
+Spawn points, bonus regions, and CTF flags are stored under the synthetic library name `Functional`:
+
+| Kind | `library` | `group` |
+|---|---|---|
+| Spawn point | `Functional` | `Spawn Points` |
+| Bonus region | `Functional` | `Bonus Regions` |
+| CTF flag | `Functional` | `Flags` |
+
+<Note>
+The original AIR editor also keyed these records as `Functional`/`Spawn Points` etc., but then tried to resolve them through `LibraryManager.nameProp`, which required a real library file that does not exist in the asset set. As a result the original silently dropped all functional props on load. This port recognises the `Functional` library name directly and restores them as first-class procedural gizmos.
+</Note>
+
+### Error handling
+
+| Situation | Behaviour |
+|---|---|
+| Record names an unknown prop | Record is skipped; `skipped` counter increments; parsing continues |
+| File ends mid-record | Parse stops cleanly; already-parsed props are returned; result carries `truncated: true` |
+
+The original AIR importer showed a modal alert and aborted mid-file when an unknown library was encountered; its resume path was dead code. The SkillTanki Editor skips gracefully instead, and the status bar reports both the loaded count and the skipped count.
+
+### The `mirror` field
+
+The `mirror` field is intentionally absent from the binary stream. In the original AS3 source, the `mirror` read and write lines were commented out (`BinaryExporter.as:38`, `BinaryImporter.as:52`). Those lines remain dormant in this port as well, preserving the byte layout of existing `.lvl` files.
+
+<Accordion title="Comparison: .lvl vs Tanks XML at a glance">
+
+| Property | Tanks XML | `.lvl` Binary |
+|---|---|---|
+| Human-readable | Yes | No |
+| Game can load directly | Yes | No |
+| Collision geometry | Included at export | Not stored |
+| Spawn/bonus/flag props | Yes (own sections) | Yes (Functional library) |
+| Mirror field | Written as attribute | Not written |
+| Error on unknown prop | Skipped + counted | Skipped + counted |
+| Truncated file | N/A | Returns partial result |
+| Original editor compatible | N/A | Yes |
+
+</Accordion>

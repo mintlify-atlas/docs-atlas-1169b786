@@ -1,72 +1,86 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "SkillTanki Editor",
+  "theme": "almond",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
-  },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
+    "primary": "#8ee07c",
+    "light": "#545249",
+    "dark": "#c4b5a7"
   },
   "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "light": "https://media.brand.dev/2ca78614-3251-4676-b44a-7867eae493eb.webp",
+    "dark": "https://media.brand.dev/2ca78614-3251-4676-b44a-7867eae493eb.webp"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:support@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/skilltanki/editor"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/skilltanki/editor"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guide",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Using the Editor",
+            "pages": [
+              "editor/interface",
+              "editor/placing-props",
+              "editor/functional-props",
+              "editor/camera-controls"
+            ]
+          },
+          {
+            "group": "Maps & Files",
+            "pages": [
+              "maps/opening-maps",
+              "maps/file-formats",
+              "maps/exporting"
+            ]
+          },
+          {
+            "group": "Building & Deploying",
+            "pages": [
+              "development/build",
+              "development/asset-pipeline",
+              "development/deployment"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Keyboard & Toolbar",
+            "pages": [
+              "reference/shortcuts",
+              "reference/toolbar"
+            ]
+          },
+          {
+            "group": "Source Architecture",
+            "pages": [
+              "reference/architecture",
+              "reference/prop-model",
+              "reference/file-format-spec"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

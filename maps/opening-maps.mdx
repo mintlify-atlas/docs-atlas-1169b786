@@ -1,0 +1,150 @@
+---
+title: "Opening and Loading Maps in SkillTanki Editor"
+sidebarTitle: "Opening Maps"
+description: "Open any of the 53 bundled classic maps via URL parameter, or load your own .lvl and Tanks XML files from disk in SkillTanki Editor."
+---
+
+The SkillTanki Editor gives you three distinct ways to load a map: a URL parameter that pulls directly from the bundled registry, a file picker for Tanks XML files exported from the game, and a file picker for the editor's own `.lvl` binary format. All three paths end the same way — the viewport frames the loaded map automatically and the prop palette is ready to use.
+
+## Three ways to open a map
+
+### 1. URL parameter — `?map=<id>`
+
+Append `?map=<id>` to the editor URL to load any of the 53 bundled summer maps straight from the registry. The editor fetches the map's light XML first, then counts each prop file individually so the loading bar reflects real progress.
+
+```
+http://localhost:5173?map=arena_old_summer
+http://localhost:5173?map=bridges_old_summer
+http://localhost:5173?map=island_old_summer
+```
+
+<Note>
+When no `?map` parameter is present the editor loads the default map, **`island_old_summer`** (Island). This is set by the `defaultMap` field in `editor-maps.json`.
+</Note>
+
+If the supplied ID does not match any registry entry the editor reports `Unknown map "<id>"` in the status bar and shows an empty scene.
+
+### 2. File → Import from Tanks (`.xml`) — `Ctrl+I`
+
+Opens a browser file picker that accepts `.xml` files. Use this to load any Tanks map XML, including files you exported from the editor or obtained from the game's data.
+
+### 3. File → Open (`.lvl`) — `Ctrl+O`
+
+Opens a browser file picker that accepts `.lvl` files — the editor's own big-endian binary format, compatible with files saved by the original 2010 AIR editor. Any records that name a prop not present in the loaded libraries are skipped and counted rather than aborting the parse; a truncated file (one that ends mid-record) is read cleanly up to the last complete record.
+
+<Tip>
+**`Ctrl+N`** starts a new empty document without any file picker. The current document is cleared immediately; there is no unsaved-changes prompt.
+</Tip>
+
+---
+
+## Opening a Tanks XML file from disk
+
+<Steps>
+  <Step title="Choose File → Import from Tanks or press Ctrl+I">
+    The editor creates a hidden `<input type="file" accept=".xml">` element and triggers a click on it. Your operating system's file picker opens.
+  </Step>
+  <Step title="Select a .xml file">
+    Navigate to and select the Tanks map XML file you want to load. Only `.xml` files are shown in the picker.
+  </Step>
+  <Step title="Wait for the loading screen">
+    A loading overlay appears, labelled with the filename. The XML is parsed immediately (no network request needed), then each prop's mesh and texture files are fetched and tracked individually by the loading bar.
+  </Step>
+  <Step title="Map is framed in the viewport">
+    Once all downloads finish, the camera orbit target moves to the centroid of all prop positions and the orbit distance is set to at least 3 000 units (or 90 % of the map's diagonal, whichever is larger), so the whole map is visible.
+  </Step>
+  <Step title="Check the status bar">
+    The status bar shows the filename, the number of props loaded, and — if any `<prop>` elements referenced libraries that could not be resolved — a skipped count: e.g. `arena_old_summer.xml: 312 props, 2 skipped`.
+  </Step>
+</Steps>
+
+---
+
+## Camera auto-framing after load
+
+After any map loads — whether from the registry, a `.xml` file, or a `.lvl` file — the editor computes the axis-aligned bounding box of all prop positions and sets:
+
+- **Orbit target** → centroid `((min + max) / 2)` in X, Y, and Z
+- **Orbit distance** → `max(3000, hypot(width, depth) × 0.9)`
+
+Maps in the registry carry absolute simulation coordinates (Island sits roughly 8 500 units away from the origin), so without this framing the viewport would show an empty grid even after a successful load.
+
+---
+
+## Loading progress
+
+The loading bar counts **real files**, not an estimate:
+
+1. The light XML is fetched first. While it downloads, the bar shows bytes received but no percentage (the file list is not yet known).
+2. Once the XML is parsed the full list of prop files is known. The bar is set to that count and advances one unit per finished download, so it only ever moves forward.
+
+This design — inherited from the original editor — means the bar never runs backwards and the percentage shown is always accurate.
+
+---
+
+## The map registry
+
+The bundled maps are described in `editor-maps.json`. Each entry has the following shape:
+
+```json
+{
+  "id": "arena_old_summer",
+  "name": "Arena",
+  "theme": "summer",
+  "file": "/maps/summer/arena_old_summer.xml",
+  "thumbnail": "assets/Thumbnails/maps/arena_old_summer.jpg"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | URL parameter value; also used as the default filename on save |
+| `name` | string | Human-readable display name shown in the loading overlay |
+| `theme` | string | Asset theme (`"summer"` for the bundled set) |
+| `file` | string | Path to the Tanks XML file, relative to the asset root |
+| `thumbnail` | string? | Optional path to a JPEG thumbnail image |
+
+The registry also carries a top-level `defaultMap` string (`"island_old_summer"`) used when no `?map` parameter is present.
+
+---
+
+## Bundled map reference
+
+The following table lists a selection of the 53 bundled maps. Pass the **ID** as the `?map` URL parameter to open any of them.
+
+| ID | Name |
+|---|---|
+| `island_old_summer` | Island *(default)* |
+| `arena_old_summer` | Arena |
+| `arena_ii_old_summer` | Arena II |
+| `bridges_old_summer` | Bridges |
+| `canyon_old_summer` | Canyon |
+| `berlin_old_summer` | Berlin |
+| `duel_old_summer` | Duel |
+| `forest_old_summer` | Forest |
+| `highways_old_summer` | Highways |
+| `kolhoz_old_summer` | Kolhoz |
+| `labyrinth_old_summer` | Labyrinth |
+| `madness_old_summer` | Madness |
+| `lost_temple_old_summer` | Lost Temple |
+| `industrial_zone_old_summer` | Industrial Zone |
+| `fort_knox_i_old_summer` | Fort Knox I |
+| `fort_knox_ii_old_summer` | Fort Knox II |
+| `fort_knox_iii_old_summer` | Fort Knox III |
+| `hangars_old_summer` | Hangars |
+| `highland_i_old_summer` | Highland I |
+| `highland_ii_old_summer` | Highland II |
+
+<Accordion title="View all keyboard shortcuts for file operations">
+
+| Action | Shortcut |
+|---|---|
+| New empty document | `Ctrl+N` |
+| Open `.lvl` file | `Ctrl+O` |
+| Save as `.lvl` | `Ctrl+S` / `Ctrl+Alt+S` |
+| Export to Tanks `.xml` | `Ctrl+T` |
+| Import from Tanks `.xml` | `Ctrl+I` |
+
+On macOS, `Cmd` substitutes for `Ctrl`. Shortcuts compare key codes, so they work on non-Latin keyboard layouts.
+
+</Accordion>

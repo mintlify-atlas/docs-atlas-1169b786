@@ -1,0 +1,80 @@
+---
+title: "Building SkillTanki Editor for Local and Production Use"
+sidebarTitle: "Build"
+description: "Run the dev server or create a production build of SkillTanki Editor with Vite. Understand the difference between local and deploy builds."
+---
+
+SkillTanki Editor is built with Vite and TypeScript. The `public/` directory is committed to the repository (binaries tracked through git LFS) and already contains every prop library, the bundled maps, and both registry files. This means you can start the dev server or create a production build immediately after cloning, without any separate asset download or sync step.
+
+<Warning>
+  Do **not** run `npm run dev`, `npm run build`, or `npm run preview` in a standalone checkout. Each of those scripts has a `pre*` hook that calls `scripts/sync-assets.mjs`, which first **wipes `public/`** and then attempts to rebuild it from the monorepo layout two directories up (`../../assets` and `../../maps.json`). Without that layout the script deletes the committed data and exits with an error, leaving `public/` empty. Always invoke Vite directly using the commands shown below.
+</Warning>
+
+## Dev server
+
+Install dependencies and start Vite's development server directly:
+
+```bash
+npm install
+npx vite
+```
+
+The server starts at [http://localhost:5173](http://localhost:5173). Because `public/` is already populated in a standalone clone, the editor loads the default map and the full prop palette straight away — no sync step is required.
+
+## Type-checking
+
+Run the TypeScript compiler in check-only mode before building to catch type errors without emitting output:
+
+```bash
+npx tsc --noEmit
+```
+
+This is the same check that is prepended to both build commands below.
+
+## Production builds
+
+There are two production build targets: a **local build** where asset data is served from the same origin at `/`, and a **deploy build** where assets are served from Cloudflare R2 at `/assets/`. Both produce a minified, obfuscated `dist/` directory.
+
+<CodeGroup>
+
+```bash Local build
+# Asset data served from / (same origin as the bundle)
+npx tsc --noEmit && npx vite build
+```
+
+```bash Deploy build
+# Asset data served from R2 at /assets/
+npx tsc --noEmit && VITE_ASSET_BASE=/assets/ npx vite build
+```
+
+</CodeGroup>
+
+Set `VITE_ASSET_BASE=/assets/` when building for the production deployment. This environment variable is read at build time and baked into the bundle by the `assetUrl()` helper — see [Asset Pipeline](/development/asset-pipeline) for details.
+
+## Build output
+
+The `dist/` directory produced by either build command contains the fully processed bundle:
+
+- **Minified with terser** — chosen over the default esbuild minifier for smaller and more thoroughly mangled output.
+- **Obfuscated with javascript-obfuscator** — the obfuscation plugin runs on each emitted chunk after terser, as a post-build Vite plugin.
+- **Hash-only chunk names** — entry and chunk files are written as `assets/[hash].js` and assets as `assets/[hash].[ext]`. Using only the hash (rather than the default `[name]-[hash]`) prevents the module map from leaking through URL paths, which would undo the obfuscation.
+- **`copyPublicDir: false`** — in production, the same map and prop tree is served from the shared R2 bucket. The `public/` directory is not copied into `dist/`.
+
+### Obfuscator settings
+
+The following javascript-obfuscator options are active. They match the settings used in the game's own build — obfuscation is intentionally a per-package concern so the two stay in step:
+
+| Option | Value | Reason |
+|---|---|---|
+| `compact` | `true` | Removes whitespace from output |
+| `simplify` | `true` | Simplifies expressions and statements |
+| `stringArray` | `true` | Extracts string literals into a lookup array |
+| `stringArrayThreshold` | `0.75` | 75 % of eligible strings are moved to the array |
+| `selfDefending` | `true` | Code resists reformatting/beautification |
+| `stringArrayEncoding` | `[]` | No runtime decoding cost per string lookup |
+| `controlFlowFlattening` | `false` | Disabled — too expensive at runtime (costs frames) |
+| `deadCodeInjection` | `false` | Disabled — too expensive at runtime |
+| `splitStrings` | `false` | Disabled — too expensive at runtime |
+| `debugProtection` | `false` | Disabled — freezes a browser with DevTools open |
+| `identifierNamesGenerator` | `'mangled'` | Shortest possible identifier names |
+| `renameGlobals` | `false` | Keeps global names stable |

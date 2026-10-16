@@ -1,47 +1,104 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with SkillTanki Editor"
+sidebarTitle: "Quickstart"
+description: "Clone the repo, install dependencies, start the dev server, and open your first map in the SkillTanki Editor in under five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+SkillTanki Editor is a static web application with no back-end to configure. The only things you need locally are Node.js (to run the Vite dev server) and a modern desktop browser. The map data — all prop libraries and the 53 bundled maps — is committed to the repository under `public/` and served directly by Vite, so the editor works fully offline once the page has loaded.
 
 ## Prerequisites
 
-Before you begin, you must have:
+- **Node.js** — any version that supports ES modules (Node 18 or later recommended)
+- **A modern desktop browser** — Chrome, Firefox, Edge, or Safari with WebGL 2 support
+- **Git with LFS** — the `public/` directory contains binary assets tracked by Git LFS; run `git lfs install` once if you have not already
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+<Warning>
+  **Do not run `npm run dev`, `npm run build`, or `npm run preview`** in a standalone checkout of this repository. Each of those scripts has a `pre*` hook that calls `scripts/sync-assets.mjs`, which wipes the entire `public/` directory and then tries to rebuild it from a monorepo layout two directories up (`../../assets` and `../../maps.json`). Without that layout the script deletes the committed prop and map data and then fails, leaving the repository in a broken state. Use `npx vite` directly instead, as shown in the steps below.
+</Warning>
 
-## Get started
+## Steps
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Clone the repository">
+    Clone the editor and move into its directory:
 
     ```bash
-    npm install your-package
+    git clone https://github.com/skilltanki/editor.git
+    cd editor
     ```
+
+    If you have Git LFS installed, the binary assets in `public/` are fetched automatically. If the prop meshes or map files appear missing, run `git lfs pull` to fetch them explicitly.
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Install dependencies">
+    Install the Node packages listed in `package.json`:
 
     ```bash
-    your-cli init
+    npm install
     ```
+
+    The runtime dependency is PlayCanvas 2.23.1. Dev dependencies are Vite, TypeScript, terser, and javascript-obfuscator (for production builds only).
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Start the dev server">
+    Start Vite directly, bypassing the `predev` hook that would otherwise wipe `public/`:
 
     ```bash
-    your-cli start
+    npx vite
     ```
+
+    Vite starts a dev server and prints a local URL — by default `http://localhost:5173`. The `public/` directory is served at the site root, so prop libraries and maps are available immediately without any additional sync step.
+  </Step>
+
+  <Step title="Open the editor">
+    Navigate to the dev server URL in your desktop browser:
+
+    ```
+    http://localhost:5173
+    ```
+
+    The editor bootstraps a PlayCanvas scene, fetches the map registry, loads all 11 prop libraries, and then opens the **default map (Island)**. A loading overlay tracks progress by file count and bytes received. When it disappears the map is fully rendered in the Workspace viewport and every library is available in the Props palette on the right.
+  </Step>
+
+  <Step title="Open a different map">
+    Any of the 53 bundled maps can be loaded by adding a `?map=<id>` query parameter to the URL. For example:
+
+    ```
+    http://localhost:5173?map=arena_old_summer
+    ```
+
+    The map ID must match an entry in the editor's map registry. If the ID is not recognised, the status bar displays an `Unknown map` message and no props are loaded.
+
+    <Tip>
+      A few map IDs to get started with:
+
+      - `island_old_summer` — the default map; a large open island
+      - `arena_old_summer` — a compact arena with buildings and cover
+      - `canyon_old_summer` — canyon terrain with ramps and bridges
+      - `forest_old_summer` — a forested map making heavy use of sprite props
+    </Tip>
+  </Step>
+
+  <Step title="Open a local file">
+    The editor reads local files through the browser's file picker:
+
+    - **`.lvl` (editor binary format):** `File → Open` — opens a file saved by this editor or the original AIR editor. Records that name a prop no library provides are skipped and counted; the rest of the file loads normally.
+    - **`.xml` (Tanks XML format):** `File → Import from Tanks` — opens a game-native map XML. This is the format exported by the game itself and by this editor's `File → Export to Tanks` command.
+
+    In both cases a loading overlay appears while prop meshes and textures are fetched, then dismisses when the map is ready.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Building for Production
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+To build a production bundle without the monorepo sync hooks, invoke the TypeScript compiler and Vite directly:
+
+```bash
+# Local build — data served from / (uses public/ at runtime)
+npx tsc --noEmit && npx vite build
+
+# Deploy build — data fetched from a shared R2 bucket at /assets/
+npx tsc --noEmit && VITE_ASSET_BASE=/assets/ npx vite build
+```
+
+The production bundle is minified with terser and then obfuscated, with hash-only chunk names so the module map is not exposed through URLs. `copyPublicDir` is disabled in the Vite config; in the deploy build the prop and map data is expected to already be present in the R2 bucket, uploaded separately with `scripts/upload-assets.mjs`.

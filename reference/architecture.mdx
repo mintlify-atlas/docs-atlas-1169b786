@@ -1,0 +1,271 @@
+---
+title: "SkillTanki Editor Source Architecture Overview"
+sidebarTitle: "Architecture"
+description: "A map of the SkillTanki Editor's TypeScript modules: core document model, PlayCanvas renderer, viewport input layer, I/O modules, and the engine copy."
+---
+
+The SkillTanki Editor is a TypeScript/PlayCanvas application assembled from five clearly separated layers: a **bootstrap** entry point that wires everything together, a **core** layer holding the document model and camera, a **render** layer that owns all PlayCanvas entities, a **prop** data model, an **I/O** layer for reading and writing map files, and a thin **engine copy** containing math and parsing utilities shared with the mobile game. The sections below describe each layer and the relationships between them.
+
+---
+
+## Bootstrap — `src/main.ts`
+
+`main.ts` is the single entry point. It performs the following steps in order:
+
+1. **Creates the PlayCanvas `Application`** on a canvas element provided by the `Chrome` layout builder.
+2. **Creates `simRoot`** — a `pc.Entity` rotated −90° about X and scaled by `0.01` (so 1 sim unit = 0.01 world metres). Everything in the scene is parented under `simRoot`, which converts the game's Z-up, 1 m = 100 sim units coordinate system into PlayCanvas's Y-up metres.
+3. **Attaches the camera and directional light** under `simRoot`.
+4. **Fetches the map registry** (`/editor-maps.json`) and the **library list** (`/editor-props.json`), both served from the same static origin as the prop assets.
+5. **Constructs** `PropRenderer`, `EditorDocument`, `EditorCamera`, `Viewport`, and `Preview` instances, wiring them together through constructor arguments and callbacks.
+6. **Loads all prop libraries** up front (the palette needs every library at start-up).
+7. **Opens the default map** (or the map named by the `?map=<id>` query parameter).
+8. **Registers menu and toolbar handlers** that route to `EditorDocument` and `Viewport` methods.
+9. **Wires keyboard accelerators** from the menu model so menu labels and keyboard bindings cannot drift apart.
+10. **Exposes `window.__editor`** for tooling and tests (see [Debug handle](#debug-handle) below).
+
+---
+
+## Core layer — `src/core/`
+
+The core layer holds the level model and all stateful subsystems that are not about rendering.
+
+### `EditorDocument`
+
+The live level model. Corresponds to the original ActionScript editor's `PropsScene` / `MainScene`, minus picking and input which live in the viewport layer. Key responsibilities:
+
+| Property / method | Description |
+|---|---|
+| `props: Prop[]` | The flat list of all props in the level. |
+| `occupyMap: OccupyMap` | Sparse 3-D occupancy grid; updated on every add/move/delete. |
+| `journal: EventJournal` | Undo/redo event log. |
+| `selection: Set<Prop>` | The currently selected props. |
+| `snapMode: boolean` | When `true`, props are snapped to the grid on placement and move. |
+| `multiplePropMode: 0 \| 1 \| 2` | 0 = Unlock, 1 = Lock group (default), 2 = Lock — controls conflict detection during group moves. |
+| `addProp(prop, addToMap?)` | Adds a prop, attaches its entity, and enters it into the occupancy map. |
+| `deleteProps(props?)` | Removes props from the scene and the occupancy map. |
+| `reoccupy(prop)` | Frees then re-enters a prop after its position changes. |
+| `undo() / redo()` | Reverses or replays the top journal entry. |
+| `toXml()` | Calls `exportTanksXml` — File → Export to Tanks. |
+| `toLvl()` | Calls `exportLvl` — File → Save. |
+| `loadXml(mapXml, onParsed?)` | Calls `importTanksXml` then attaches all props — File → Import from Tanks. |
+| `loadLvl(buffer, onParsed?)` | Calls `importLvl` then attaches all props — File → Open. |
+
+### `EditorCamera`
+
+An orbit/pan/dolly camera rig stored as a target point plus spherical coordinates (yaw, pitch, distance). The PlayCanvas entity lives under `simRoot` and is written by calling `apply()`. The starting pose matches the original AS3 editor exactly: position `(250, −7800, 4670)`, pitch −30°.
+
+| Method | Description |
+|---|---|
+| `apply()` | Writes target + spherical parameters to the entity transform. |
+| `orbit(deltaYaw, deltaPitch)` | Rotates the camera around the target. |
+| `pan(dx, dy)` | Slides the target in the camera's screen plane. |
+| `move(forward, right)` | Slides the target along the camera's horizontal axes (held-key navigation). |
+| `dolly(factor)` | Multiplies the distance, clamped to `[300, 60000]` sim units. |
+| `getCameraSector()` | Returns 1–4 based on yaw quadrant; used by arrow-key movement to stay in screen space. |
+
+### `OccupyMap`
+
+A sparse three-level `Map<x, Map<y, Map<z, Prop[]>>>` keyed by grid-cell coordinates. Cell size is H_BASE × H_BASE × V_BASE (250 × 250 × 300 sim units). Used for snap-mode conflict detection.
+
+| Method | Description |
+|---|---|
+| `occupy(prop)` | Marks every cell covered by the prop's extents and sets `prop.free = false`. |
+| `free(prop)` | Removes the prop from every cell and sets `prop.free = true`. |
+| `isConflict(prop)` | Returns `true` if any other prop shares a cell (used in Lock mode). |
+| `isConflictGroup(prop)` | Returns `true` if another prop in the same group shares a cell (used in Lock group mode). |
+| `getConflictProps()` | Returns all props involved in any collision; used by the Q key. |
+
+### `EventJournal`
+
+Records editor operations for undo/redo. A new event clears the redo stack. Each `JournalItem` stores the operation type, the affected `Set<Prop>`, and any state needed to reverse the operation.
+
+| Operation | `oldState` payload |
+|---|---|
+| `add` | — (deletion is the inverse) |
+| `delete` | — (re-addition is the inverse) |
+| `copy` | — |
+| `move` | `MoveDelta { x, y, z }` |
+| `rotate` | `boolean` (the `plus` direction flag) |
+| `changeTexture` | `TextureChange { previous: Map<Prop, string> }` |
+
+<Note>
+The original ActionScript editor declared `CHANGE_TEXTURE` in the journal but never recorded or handled it, so texture changes were not undoable. This TypeScript port records and reverses them correctly.
+</Note>
+
+### `Viewport`
+
+The input handling layer. It sits at the boundary between raw DOM events (`mousedown`, `mousemove`, `mouseup`, `wheel`, `keydown`, `keyup`) and `EditorDocument`. Responsibilities include:
+
+- **Mouse picking** — raycasts against prop entities to find click targets.
+- **Drag / copy / move** — translates props by projecting the pointer onto the XZ plane (or a vertical plane when V is held).
+- **Rubber-band selection** — draws a marquee div and tests prop screen-space centres against it.
+- **Cursor prop** — maintains the "ghost" prop that follows the pointer until Space places it.
+- **Keyboard prop operations** — arrow keys move props or the cursor, X/Z rotate, Delete/C deletes, Space pastes, Q selects conflicting props, F mirrors textures.
+- **Camera held-key loop** — forwards the `KeyMapper` bitmask to `EditorCamera` every frame via `update(dt)`.
+
+### `Grid`
+
+Creates the ground-plane grid mesh as a `pc.Entity` parented under `simRoot`. Toggled by the toolbar grid button and the Show Grid menu item.
+
+### `KeyMapper`
+
+A layout-agnostic key-code matcher. Binds camera navigation keys (N, M, Numpad 8/2/4/6/9/3/+/−) by `event.code` so they fire regardless of OS keyboard layout. Used internally by `Viewport`.
+
+### `AssetProgress`
+
+Tracks in-flight fetch bytes and completed file counts for the loading bar. The bar advances one unit per finished file (not per byte), so the total is fixed once the file list is known and can never run backwards.
+
+### `assetUrl`
+
+A one-line helper that prepends the `VITE_ASSET_BASE` environment variable to a path. All asset fetches go through this function so the dev build (`/`) and the deploy build (`/assets/`) differ by a single config value.
+
+---
+
+## Render layer — `src/render/`
+
+### `PropRenderer`
+
+Builds and manages PlayCanvas entities for every prop. It owns all mesh, material, and texture caches and is the only module that touches `pc.Entity` for prop visuals.
+
+Key features:
+
+- **Mesh cache** — keyed by `${meshUrl}#${objectName}`; each `.3ds` body object becomes one `pc.Mesh`, shared across all props of the same kind.
+- **Texture cache** — keyed by URL; each `Promise<pc.Texture>` is cached so parallel loads of the same file deduplicate automatically.
+- **Per-prop material instances** — each prop gets its own `pc.StandardMaterial` clone so selection tinting (red/green/none) can target individual props without affecting others.
+- **Collision cache** — stores the parsed `Parsed3DSObject[]` for each `library|group|name` key; the exporter reads this to derive collision primitives.
+- **Procedural gizmos** — spawn points, bonus regions, and CTF flags have no mesh in any shipped library. `PropRenderer` draws them as coloured semi-transparent boxes (`buildGizmo`) so they remain visible and editable.
+- **Texture swaps** — `applyTexture(prop)` replaces the emissive map on the prop's material instance without rebuilding the mesh or material.
+- **Collision view** — `setCollisionView(prop, enabled)` hides the normal mesh and shows a pink overlay built from the `box*`, `plane*`, and `tri*` child objects of the `.3ds` file.
+- **Selection tint** — `setTint(prop, tint)` sets the material's emissive colour: red-pink for selected, green for cursor-free, red for cursor-blocked.
+
+---
+
+## Prop model — `src/prop/`
+
+### `Prop`
+
+The single data object representing one editor prop. See [Prop Model](/reference/prop-model) for the complete field reference.
+
+---
+
+## I/O layer — `src/io/`
+
+### `LvlFormat`
+
+Implements the editor's native binary format (File → Open / Save).
+
+- `exportLvl(props)` — serialises a `Prop[]` to a `Uint8Array` in the record layout described in [File Format Spec](/reference/file-format-spec).
+- `importLvl(buffer, resolve)` — parses records until EOF; truncated files return `truncated: true` with whatever props were recovered.
+
+### `TanksXmlExporter`
+
+`exportTanksXml(props, options)` builds the full map document string. Sections are emitted in fixed order: `<static-geometry>`, `<collision-geometry>`, `<spawn-points>`, `<bonus-regions>`, then `<ctf-flags>` appended lazily only when at least one flag exists.
+
+### `TanksXmlImporter`
+
+`importTanksXml(mapXml, callbacks)` parses a game map XML `Document` into a `Prop[]`. The `resolveTile` callback is called for every `<prop>` element; returning `null` skips the prop and increments the `skipped` counter.
+
+### `collision/CollisionPrimitives`
+
+`buildPrimitives(objects)` reads the `box*`, `plane*`, and `tri*` child objects from a parsed `.3ds` file and returns typed `CollisionPrimitive` objects. Each primitive can serialise itself to an XML element with a 4×4 transform matrix.
+
+### `collision/Matrix3D`
+
+A 4×4 matrix used for collision transform composition. Provides `toIdentity()`, `rotate()`, `translate()`, and matrix multiplication; used by the exporter to combine a prop's world transform with each primitive's local transform.
+
+---
+
+## Engine copy — `src/engine/`
+
+The engine directory contains copies of modules taken as-is from the mobile game's source tree (`apps/mobile/src/engine`).
+
+| Module | Description |
+|---|---|
+| `math/Vector3`, `Matrix3`, `Matrix4` | 3-D math primitives. |
+| `map/Parser3DS` | Binary `.3ds` file parser. |
+| `map/PropLibrary` | Parses `library.xml` files into `PropDef` records. |
+| `map/xmlUtils` | Lightweight DOM query helpers (`childElements`, `firstChild`, `childNumber`). |
+| `render/buildMesh` | Constructs a `pc.Mesh` from flat position/index/UV arrays. |
+
+<Note>
+**Engine copy policy:** these files are verbatim copies, not shared packages. The editor builds, type-checks, and breaks on its own. When the game's copy of any of these files changes, re-copy the updated file from `apps/mobile/src/engine` into `src/engine/`. Never patch this directory directly — patches will be silently overwritten by the next copy.
+</Note>
+
+---
+
+## UI layer — `src/ui/`
+
+| Module | Description |
+|---|---|
+| `Chrome` | Constructs the full editor layout (menu bar, toolbar, workspace canvas, preview pane, prop list, status bar) from DOM elements. |
+| `LoadingScreen` | Full-screen overlay with a progress bar, shown during initial load and map opens. |
+| `Preview` | Renders a spinning icon of the currently selected or hovered prop using a dedicated off-screen camera. |
+| `PropListPanel` | Builds the accordion prop palette from a `PropLibrary`; calls a callback with `PropPick` when a cell is clicked. |
+| `menuModel` | Defines the menu tree, shortcut bindings, and the help text string. `menuShortcuts()` returns `{ label, shortcut }[]` so the keyboard handler and the menu renderer share a single source of truth. |
+
+---
+
+## Module dependency diagram
+
+```
+main.ts
+├── ui/Chrome          (layout)
+├── ui/LoadingScreen
+├── ui/Preview
+├── ui/PropListPanel
+├── ui/menuModel
+│
+├── core/EditorDocument
+│   ├── core/OccupyMap
+│   ├── core/EventJournal
+│   ├── render/PropRenderer  ──────────────────────────┐
+│   ├── io/LvlFormat                                   │
+│   ├── io/TanksXmlExporter                            │
+│   └── io/TanksXmlImporter                            │
+│                                                      │
+├── core/EditorCamera                                  │
+├── core/Viewport                                      │
+│   ├── core/EditorCamera                              │
+│   └── core/EditorDocument                            │
+│                                                      │
+└── render/PropRenderer  ◄──────────────────────────── ┘
+    ├── engine/map/Parser3DS
+    ├── engine/map/PropLibrary
+    ├── engine/render/buildMesh
+    ├── io/collision/CollisionPrimitives
+    └── io/collision/Matrix3D
+
+prop/Prop  (leaf — imported by nearly every module above)
+engine/*   (leaf — no editor imports)
+```
+
+---
+
+## Debug handle
+
+`main.ts` exposes the full subsystem graph on `window.__editor` after start-up completes:
+
+```typescript
+window.__editor = {
+  app,          // pc.AppBase
+  simRoot,      // pc.Entity (Z-up → Y-up conversion root)
+  mapRoot,      // pc.Entity (all placed props live here)
+  cursorRoot,   // pc.Entity (the ghost cursor prop)
+  camera,       // pc.Entity
+  editorCamera, // EditorCamera
+  grid,         // pc.Entity
+  registry,     // MapRegistry
+  renderer,     // PropRenderer
+  doc,          // EditorDocument
+  viewport,     // Viewport
+  openMap,      // (entry: MapRegistryEntry) => Promise<void>
+  chrome,       // Chrome
+  saveXml,      // () => void
+  saveLvl,      // () => void
+  openLvl,      // () => void
+  assetProgress,
+  loadingScreen,
+};
+```
+
+This mirrors the game's `window.__game` handle and is intended for browser-console inspection and automated tests — not for production use.

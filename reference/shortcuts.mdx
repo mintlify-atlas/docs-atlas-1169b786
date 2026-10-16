@@ -1,0 +1,67 @@
+---
+title: "SkillTanki Editor Keyboard Shortcut Reference"
+sidebarTitle: "Shortcuts"
+description: "Complete keyboard shortcut reference for SkillTanki Editor. Covers prop manipulation, camera navigation, file operations, and view toggles."
+---
+
+The SkillTanki Editor uses the same shortcut bindings as the original 2010 AIR level editor, so any existing muscle memory transfers directly. All bindings compare `event.code` (key codes) rather than `event.key` (character values), which means they work correctly regardless of your keyboard layout — Cyrillic, Arabic, or any other non-Latin layout behaves identically to a US layout. On macOS, the **Cmd** key replaces **Ctrl** in every multi-key combination.
+
+## Prop Actions
+
+| Shortcut | Action |
+|---|---|
+| Space | Place (paste) the cursor prop |
+| Esc | Deselect / drop cursor prop |
+| Delete or C | Delete selected props |
+| X | Rotate clockwise 90° (5° for spawn points) |
+| Z | Rotate counter-clockwise 90° |
+| Arrow keys | Move selected props in XY |
+| Drag | Move selected props |
+| Shift + drag | Copy selected props |
+| V + drag | Move selected props vertically (Z) |
+| W | Move selected props up (Z+) |
+| S | Move selected props down (Z−) |
+| F | Mirror texture |
+| Q | Select conflicting props |
+
+## Camera
+
+| Shortcut | Action |
+|---|---|
+| Middle mouse | Pan |
+| Alt + middle mouse | Orbit (rotate) |
+| Scroll wheel | Zoom (dolly) |
+| N | Yaw left |
+| M | Yaw right |
+| Numpad 8 / 2 | Move camera forward / backward |
+| Numpad 4 / 6 | Move camera left / right |
+| Numpad 9 / 3 | Tilt up / down |
+| Numpad + / − | Zoom in / out |
+
+## File Operations
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+N | New document |
+| Ctrl+O | Open `.lvl` file |
+| Ctrl+S | Save as `.lvl` |
+| Ctrl+Alt+S | Save as… (same as Save in current implementation) |
+| Ctrl+T | Export to Tanks XML |
+| Ctrl+I | Import from Tanks XML |
+| Ctrl+Z | Undo |
+| Ctrl+Y | Redo |
+| Ctrl+Alt+C | Clear all props |
+
+## Help
+
+| Shortcut | Action |
+|---|---|
+| Help menu → Help | Show shortcut list in-app |
+
+<Note>
+  The in-app **Help → Help** menu item shows the same shortcut list defined in `HELP_TEXT` in the source (`src/ui/menuModel.ts`). It appears as a browser `alert()` dialog, so it is always available even while the viewport is active.
+</Note>
+
+<Tip>
+  Shortcut matching uses `event.code` (physical key position) rather than `event.key` (character produced). This means all bindings work correctly on non-Latin keyboard layouts — for example, pressing the key in the **Q** position on a Cyrillic keyboard still triggers "Select conflicting props."
+</Tip>

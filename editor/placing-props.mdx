@@ -1,0 +1,169 @@
+---
+title: "Placing, Moving, and Editing Props in the Map"
+sidebarTitle: "Placing Props"
+description: "Learn how to pick props from the palette, place them on the grid, rotate, copy, change textures, and manage selections in SkillTanki Editor."
+---
+
+Props are the building blocks of every SkillTanki map — from boxy hangars and castle walls to slope ramps and billboard trees. This page walks through the full lifecycle of a prop: picking it from the palette, placing it on the grid, adjusting its position and orientation, changing its texture, and eventually removing it. Every operation feeds into the undo journal, so you can freely experiment without risk.
+
+---
+
+## Basic Place-a-Prop Workflow
+
+<Steps>
+  <Step title="Pick a prop from the palette">
+    Open the Props accordion on the right panel and click any cell. The prop attaches to the cursor as a ghost mesh. If snap mode is on (the **⊓** toolbar button is active), the ghost turns **green** when the target cell is free and **red** when it is occupied by another prop.
+  </Step>
+  <Step title="Position the cursor">
+    Move the mouse over the workspace viewport. The ghost follows the cursor, snapping to the 5 m × 5 m × 3 m placement grid when snap mode is on. You can also nudge the cursor one grid step at a time with the **arrow keys**, or adjust its height with **W** (up one floor) or **S** (down one floor).
+  </Step>
+  <Step title="Place the prop">
+    Press **Space** to paste the prop at the cursor position. The ghost remains on the cursor so you can paste again immediately to place multiple copies side by side.
+  </Step>
+  <Step title="Drop the cursor prop">
+    Press **Esc** to drop the prop from the cursor without placing it. The cursor returns to its idle state. If a prop is selected, pressing **Esc** first deselects it and parks the cursor ghost at the selection's position; a second **Esc** then clears the cursor entirely.
+  </Step>
+</Steps>
+
+---
+
+## Selecting Props
+
+Click a placed prop in the workspace to select it; it is highlighted with a tint. Click empty space to deselect everything and return the cursor to that point.
+
+| Action | Result |
+|---|---|
+| Click a prop | Deselect all, select the clicked prop |
+| Shift+click | Add the clicked prop to the selection |
+| Shift+Alt+click | Remove the clicked prop from the selection |
+| Drag on empty space | Rubber-band marquee selects all props whose centres fall inside the rectangle |
+| Shift+drag on empty space | Adds props inside the marquee to the existing selection |
+| Alt+drag on empty space | Removes props inside the marquee from the selection |
+
+The **"Selecting prop"** combo in the toolbar filters which kinds of props can be picked in the viewport: **All**, **Tile**, **Sprite**, or **Bonus + Spawn**.
+
+---
+
+## Moving Props
+
+Selected props can be moved with either the mouse or the keyboard. Arrow-key movement always moves in the direction that looks like screen-space up/down/left/right for the current camera orientation — the editor tracks the camera quadrant internally so arrows behave intuitively as you orbit around the map.
+
+### Mouse drag
+
+Drag a selected prop to move it. All other selected props move by the same delta. When snap mode is active (or the prop is a tile), positions are snapped to the placement lattice after every drag step.
+
+### Arrow keys
+
+Each press moves the selection by one lattice step (500 sim units, i.e. 5 m in XY) relative to the screen-space camera orientation.
+
+### Vertical movement
+
+Hold **V** while dragging to switch to vertical (Z-axis) movement — the drag plane rotates to face the camera so you can slide the prop up and down by dragging. Alternatively, press **W** to raise the selection by one vertical step (300 sim units, 3 m) or **S** to lower it.
+
+---
+
+## Copying Props
+
+Hold **Shift** and begin dragging a selected prop. At the moment the drag starts, the selection is duplicated in place, and the copies become the active selection. You can then drag to the destination. The copy is recorded as a `copy` event in the undo journal, separate from the subsequent move.
+
+---
+
+## Rotating Props
+
+Rotation applies to whichever set of props is active — either the cursor ghost (if a prop is attached to the cursor and no placed prop is selected) or the current selection.
+
+| Key | Effect |
+|---|---|
+| **X** | Rotate clockwise by 90° (tiles/sprites) or 5° (spawn points) |
+| **Z** | Rotate counter-clockwise by 90° (tiles/sprites) or 5° (spawn points) |
+
+When multiple props are selected, they rotate as a group about the computed bounding-box centre, so their relative layout is preserved. Rotation also updates the occupancy-grid extents, so the footprint turns with the mesh.
+
+---
+
+## Deleting Props
+
+Select one or more props and press **Delete** or **C** to remove them. The operation is recorded in the undo journal and can be reversed with **Ctrl+Z**.
+
+If the cursor prop is active when you delete, the cursor snaps to the position of the first deleted prop so placement can continue immediately.
+
+---
+
+## Keyboard Shortcut Reference
+
+| Key | Action |
+|---|---|
+| **Space** | Paste (place) the cursor prop at the current position |
+| **Esc** | Deselect selection, or drop the cursor prop |
+| **Delete** / **C** | Delete selected props |
+| **X** | Rotate clockwise |
+| **Z** | Rotate counter-clockwise |
+| **Arrow keys** | Move cursor or selection one grid step (screen-relative) |
+| **W** | Move cursor or selection up one vertical step (300 sim units) |
+| **S** | Move cursor or selection down one vertical step |
+| **V** + drag | Move cursor or selection vertically by dragging |
+| **Shift** + drag | Copy selection and move to drag destination |
+| **F** | Mirror texture horizontally on selected tiles |
+| **Q** | Select all conflicting props (cells occupied by more than one prop) |
+| **Ctrl+Z** | Undo last operation |
+| **Ctrl+Y** | Redo last undone operation |
+
+---
+
+## Changing Textures
+
+Every tile prop in the game's libraries has one or more named texture variants. To apply a variant:
+
+1. Select one or more tiles in the workspace.
+2. Click the **◉** toolbar button to open the texture property panel (it opens on the right side, above the prop list).
+3. Click any variant swatch to apply it to all selected tiles simultaneously.
+
+Texture changes are recorded in the undo journal, so **Ctrl+Z** reverts them — this was not possible in the original 2010 AIR editor.
+
+Press **F** to toggle a horizontal mirror on the texture of all selected tiles.
+
+---
+
+## Snap Mode and Conflict Detection
+
+When snap mode is on (**⊓** toolbar button, default), every prop position is rounded to the nearest lattice point (500 sim units on XY, 300 on Z) before it is committed. The occupancy map tracks which cells each prop covers. A cell conflict is flagged whenever two props overlap in the same cell.
+
+- **Cursor ghost**: turns red while hovering over an occupied cell.
+- **Q key**: selects all conflicting props already placed in the scene, so you can inspect or delete them.
+- After a drag: if the dropped position conflicts, the status bar shows `This location is occupied.`
+
+### Multiple-Prop Mode
+
+When you move a multi-prop selection, the conflict-checking behaviour is controlled by the **Option** menu:
+
+| Mode | Behaviour |
+|---|---|
+| **Unlock** (mode 0) | No conflict checking — props can be freely overlapped |
+| **Lock group** (mode 1) | Conflicts are reported only between props of the **same group** (default) |
+| **Lock** (mode 2) | Any overlap with any other prop counts as a conflict |
+
+---
+
+## Hiding and Showing Props
+
+- **◌ (hide selected)** — hides all currently selected props. Hidden props are invisible and cannot be picked or selected.
+- **👁 (show all)** — makes every hidden prop visible again.
+
+These operations are not recorded in the undo journal.
+
+---
+
+## Undo and Redo
+
+The editor maintains a full event journal of every destructive operation:
+
+| Operation | Undoable |
+|---|---|
+| Place (paste) | ✅ |
+| Delete | ✅ |
+| Move (arrow keys or drag) | ✅ |
+| Rotate | ✅ |
+| Copy (Shift+drag) | ✅ |
+| Texture change | ✅ |
+
+Press **Ctrl+Z** (or **Cmd+Z** on macOS) to undo the last operation. Press **Ctrl+Y** (or **Cmd+Y**) to redo. Undo and redo operate on the entire selection for multi-prop operations — unlike the original editor, which only handled one prop at a time for copy and redo.

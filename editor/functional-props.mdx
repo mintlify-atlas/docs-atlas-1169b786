@@ -1,0 +1,146 @@
+---
+title: "Spawn Points, Bonus Regions, and CTF Flags"
+sidebarTitle: "Functional Props"
+description: "Place and configure spawn points, bonus regions, and CTF flags in SkillTanki Editor. These functional props fully round-trip through import and export."
+---
+
+Functional props are map entities that carry gameplay meaning rather than geometry: they define where tanks spawn, where bonus pickups appear, and where CTF flags are located. Unlike the tile and sprite props that make up the map scenery, functional props carry no `.3ds` mesh — they are drawn as procedural gizmos in the viewport so you can always see and select them, regardless of which camera angle you are using.
+
+<Note>
+  The original 2010 AIR editor silently dropped spawn points, bonus regions, and CTF flags when loading a Tanks XML map. The editor expected a prop library named `"Functional"` to exist on disk; because that library was never shipped with the game assets, any functional prop parsed from the XML was immediately discarded. This port fixes the issue by implementing functional props as first-class procedural entities. They survive the full import → edit → export → game cycle without loss.
+</Note>
+
+---
+
+## Finding Functional Props in the Palette
+
+Functional props appear as a synthetic library called **Functional** in the Library combo at the top of the Props accordion. It is listed alongside the 11 regular mesh libraries (Buildings, Builds, Castle, etc.) and is selected from the same dropdown.
+
+The Functional library contains three groups:
+
+| Group | Props |
+|---|---|
+| **Spawn Points** | Named spawn types (e.g. `dm`, `team1`, `team2`) — names are used as the `type` attribute in the exported XML |
+| **Bonus Regions** | Bonus pickup zones; configurable bonus types via the property panel |
+| **Flags** | `red_flag` and `blue_flag` for Capture the Flag maps |
+
+---
+
+## How Functional Props Differ from Tiles
+
+| Property | Tile / Sprite | Functional prop |
+|---|---|---|
+| Mesh source | `.3ds` file from a prop library | None — drawn as a procedural gizmo |
+| Texture variants | Yes | No |
+| Occupancy extents | Measured from vertex positions | Fixed: `H_BASE` (250 sim units) on XY, `V_BASE` (300 sim units) on Z |
+| Rotation | 90° steps | Spawn points: 5° steps; flags: fixed |
+| Exported XML section | `<static-geometry>` | `<spawn-points>`, `<bonus-regions>`, or `<ctf-flags>` |
+
+Because functional props use fixed extents (matching the original `Spawn.as` and `Flag.as` constants), they always occupy exactly one occupancy cell regardless of visual size.
+
+---
+
+## Spawn Points
+
+A spawn point defines where a tank enters the match. To place one:
+
+1. Select the **Functional** library from the Library combo.
+2. Click a spawn type cell in the **Spawn Points** group — the prop attaches to the cursor.
+3. Move the cursor to the desired location in the workspace and press **Space** to place it.
+
+The **prop name** (`dm`, `team1`, `team2`, etc.) becomes the `type` attribute in the exported `<spawn-point>` element:
+
+```xml
+<spawn-point type="dm" free="false">
+  <position>
+    <x>500.000</x>
+    <y>-750.000</y>
+    <z>0.000</z>
+  </position>
+  <rotation>
+    <z>0.523599</z>
+  </rotation>
+</spawn-point>
+```
+
+Spawn points rotate in **5° steps** (using **X** and **Z**), rather than the 90° steps used by tiles. This allows you to orient a tank's starting direction precisely.
+
+---
+
+## Bonus Regions
+
+A bonus region marks an area of the map where a pickup (health, damage boost, etc.) will spawn during a match. The region has a position plus a bounding box (derived from the prop's occupancy extents) that tells the game where the pickup can appear within the zone.
+
+<Tip>
+  To set the bonus types for a bonus region, select the placed bonus prop in the workspace and open the property panel with the **◉** toolbar button. The panel shows the available bonus types. Click a type to add it to the set for that region. A bonus region can carry multiple types — the game picks from the set at random.
+</Tip>
+
+The default bonus type seeded onto every newly created bonus region is `damageup`, matching the original editor's `Bonus.as` constructor.
+
+The exported XML includes absolute `<min>` and `<max>` bounding-box coordinates derived from the prop position and its stored extents:
+
+```xml
+<bonus-region name="bonus_1" free="false">
+  <position>
+    <x>1000.000</x>
+    <y>2000.000</y>
+    <z>0.000</z>
+  </position>
+  <rotation>
+    <z>0.000000</z>
+  </rotation>
+  <min>
+    <x>750.000</x>
+    <y>1750.000</y>
+    <z>0.000</z>
+  </min>
+  <max>
+    <x>1250.000</x>
+    <y>2250.000</y>
+    <z>300.000</z>
+  </max>
+  <bonus-type>damageup</bonus-type>
+</bonus-region>
+```
+
+When importing a Tanks XML that already contains `<bonus-region>` entries, the editor reads the `<min>` and `<max>` values back as extents relative to the prop's position, so re-exporting reproduces the same bounding-box coordinates.
+
+---
+
+## CTF Flags
+
+CTF (Capture the Flag) maps require exactly one red flag and one blue flag. The editor exposes these as two prop cells in the **Flags** group of the Functional library:
+
+| Prop name | Exported element |
+|---|---|
+| `red_flag` | `<flag-red>` inside `<ctf-flags>` |
+| `blue_flag` | `<flag-blue>` inside `<ctf-flags>` |
+
+Flags carry only a position — they have no rotation, no texture, and no bonus type. The exported `<ctf-flags>` block is created automatically the first time a flag is written:
+
+```xml
+<ctf-flags>
+  <flag-red>
+    <x>500.000</x>
+    <y>1000.000</y>
+    <z>0.000</z>
+  </flag-red>
+  <flag-blue>
+    <x>-500.000</x>
+    <y>1000.000</y>
+    <z>0.000</z>
+  </flag-blue>
+</ctf-flags>
+```
+
+---
+
+## Import and Export Round-Trip
+
+All three functional prop types survive the full edit cycle:
+
+1. **Import from Tanks** (`Ctrl+I`) — `<spawn-points>`, `<bonus-regions>`, and `<ctf-flags>` are parsed into `Prop` objects with `kind` set to `'spawn'`, `'bonus'`, and `'flag'` respectively. Each is placed in the viewport as a gizmo.
+2. **Save / Open** (`Ctrl+S` / `Ctrl+O`) — functional props are written into the editor's `.lvl` binary format and read back without loss.
+3. **Export to Tanks** (`Ctrl+T`) — functional props are written into their correct sections of the Tanks XML. The element order, attribute names, and number formatting match the shipped maps exactly (positions to 3 decimal places, rotations to 6).
+
+There is no separate step or flag to enable functional-prop support — they behave the same as any other prop in the editor (selectable, moveable, rotatable, deletable, undoable).

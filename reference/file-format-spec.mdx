@@ -1,0 +1,323 @@
+---
+title: "File Format Specification: Tanks XML and .lvl Binary"
+sidebarTitle: "Format Spec"
+description: "Detailed specification for the Tanks XML map format and the .lvl binary format used by SkillTanki Editor, including byte layout and element schema."
+---
+
+The SkillTanki Editor reads and writes two map formats. **Tanks XML** (`File → Export to Tanks` / `File → Import from Tanks`) is the native format the game engine reads — element order, attribute names, and number precision all match the shipped maps byte-for-byte. **`.lvl`** (`File → Open` / `File → Save`) is the editor's own binary format, a compact big-endian record stream inherited from the original ActionScript AIR editor. Both formats are implemented in `src/io/` and are round-tripped without loss for all prop kinds, including spawn points, bonus regions, and CTF flags that the original editor dropped on import.
+
+---
+
+## Tanks XML format
+
+### Document structure
+
+The root element is `<map version="1.0">`. Its children appear in fixed order:
+
+```xml
+<map version="1.0">
+  <static-geometry>  …tiles and sprites…  </static-geometry>
+  <collision-geometry>  …primitives…  </collision-geometry>
+  <spawn-points>  …spawn-point elements…  </spawn-points>
+  <bonus-regions>  …bonus-region elements…  </bonus-regions>
+  <!-- <ctf-flags> is appended only when at least one flag exists -->
+</map>
+```
+
+`<ctf-flags>` is created lazily by `addCtfFlag()` and appended to the root after `<bonus-regions>`. If the map contains no flags the element is absent entirely.
+
+---
+
+### `<prop>` element (tile and sprite)
+
+`<prop>` elements appear inside `<static-geometry>`, one per tile or sprite prop.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|---|---|---|
+| `library-name` | string | The prop library name (e.g. `Buildings`). |
+| `group-name` | string | The group within the library (e.g. `Hangar`). |
+| `name` | string | The prop name within the group. |
+| `mirror` | `"true"` / `"false"` | Whether the texture is mirrored. Written by the exporter; never read back by the original game. |
+| `free` | `"true"` / `"false"` | Whether the prop is exempt from occupancy-map registration. |
+
+**Children (in order):**
+
+1. `<rotation>` — contains `<z>{rotationZ}</z>` formatted to **6 decimal places**.
+2. `<position>` — contains `<x/>`, `<y/>`, `<z/>` each formatted to **3 decimal places**.
+3. `<texture-name>` — the selected texture variant name string.
+
+```xml
+<prop library-name="Buildings" group-name="Hangar" name="Hangar1"
+      mirror="false" free="false">
+  <rotation>
+    <z>1.570796</z>
+  </rotation>
+  <position>
+    <x>500.000</x>
+    <y>-1000.000</y>
+    <z>0.000</z>
+  </position>
+  <texture-name>hangar_summer</texture-name>
+</prop>
+```
+
+---
+
+### `<spawn-point>` element
+
+`<spawn-point>` elements appear inside `<spawn-points>`.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|---|---|---|
+| `type` | string | The spawn type, taken from `prop.name` (e.g. `dm`, `red`, `blue`). |
+| `free` | `"true"` / `"false"` | Occupancy-map exemption flag. |
+
+**Children (in order):** `<position>`, `<rotation>` (same format as `<prop>`).
+
+```xml
+<spawn-point type="dm" free="false">
+  <position>
+    <x>250.000</x>
+    <y>250.000</y>
+    <z>0.000</z>
+  </position>
+  <rotation>
+    <z>0.000000</z>
+  </rotation>
+</spawn-point>
+```
+
+---
+
+### `<bonus-region>` element
+
+`<bonus-region>` elements appear inside `<bonus-regions>`.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|---|---|---|
+| `name` | string | An identifier for the region, taken from `prop.name`. |
+| `free` | `"true"` / `"false"` | Occupancy-map exemption flag. |
+
+**Children (in order):**
+
+1. `<position>` — the region's centre position (3-decimal).
+2. `<rotation>` — `<z>` to 6 decimals.
+3. `<min>` — `<x/>`, `<y/>`, `<z/>` — absolute lower corner of the bounding box (3-decimal). Computed as `prop.{x,y,z} + prop.distances{X,Y,Z}.min`.
+4. `<max>` — `<x/>`, `<y/>`, `<z/>` — absolute upper corner (3-decimal). Computed as `prop.{x,y,z} + prop.distances{X,Y,Z}.max`.
+5. One or more `<bonus-type>` text elements listing the bonus types the region grants.
+
+```xml
+<bonus-region name="bonus1" free="false">
+  <position>
+    <x>0.000</x>
+    <y>0.000</y>
+    <z>0.000</z>
+  </position>
+  <rotation>
+    <z>0.000000</z>
+  </rotation>
+  <min>
+    <x>-250.000</x>
+    <y>-250.000</y>
+    <z>0.000</z>
+  </min>
+  <max>
+    <x>250.000</x>
+    <y>250.000</y>
+    <z>300.000</z>
+  </max>
+  <bonus-type>damageup</bonus-type>
+</bonus-region>
+```
+
+---
+
+### `<ctf-flags>` element
+
+The `<ctf-flags>` element contains one `<flag-red>` and/or one `<flag-blue>` child, each with `<x/>`, `<y/>`, `<z/>` text children (3-decimal). Unlike other props, flags carry no `<rotation>` or `<position>` wrapper — the coordinates are direct children of the flag element.
+
+```xml
+<ctf-flags>
+  <flag-red>
+    <x>-1500.000</x>
+    <y>0.000</y>
+    <z>0.000</z>
+  </flag-red>
+  <flag-blue>
+    <x>1500.000</x>
+    <y>0.000</y>
+    <z>0.000</z>
+  </flag-blue>
+</ctf-flags>
+```
+
+---
+
+### `<collision-geometry>` element
+
+Collision primitives are derived from the `box*`, `plane*`, and `tri*` child mesh objects inside each tile's `.3ds` file by `CollisionPrimitives.buildPrimitives()`. Each primitive emits its own XML element (tag names depend on the primitive type) containing a 4×4 world-space transform matrix. The matrix is the product of the prop's own world transform and the primitive's local transform read from the `.3ds` keyframer block.
+
+<Note>
+The original ActionScript exporter silently dropped `tri*` (triangle) primitives. Every shipped map relies on them for ramps and bridges. This TypeScript port includes them correctly.
+</Note>
+
+---
+
+### Pretty-printing rules
+
+- Indent: **2 spaces** per nesting level.
+- Numbers: positions use **3 decimal places** (`toFixed(3)`); rotation Z uses **6 decimal places** (`toFixed(6)`).
+- Normalisation: `-0` is converted to `0` before formatting.
+- XML escaping applied to both attribute values and text content:
+
+| Character | Escaped form |
+|---|---|
+| `&` | `&amp;` |
+| `<` | `&lt;` |
+| `>` | `&gt;` |
+| `"` | `&quot;` |
+
+---
+
+### Minimal map example
+
+A minimal valid map with one tile prop, one spawn point, and one bonus region:
+
+```xml
+<map version="1.0">
+  <static-geometry>
+    <prop library-name="Buildings" group-name="Hangar" name="Hangar1"
+          mirror="false" free="false">
+      <rotation>
+        <z>0.000000</z>
+      </rotation>
+      <position>
+        <x>500.000</x>
+        <y>500.000</y>
+        <z>0.000</z>
+      </position>
+      <texture-name>hangar_summer</texture-name>
+    </prop>
+  </static-geometry>
+  <collision-geometry/>
+  <spawn-points>
+    <spawn-point type="dm" free="false">
+      <position>
+        <x>0.000</x>
+        <y>0.000</y>
+        <z>0.000</z>
+      </position>
+      <rotation>
+        <z>0.000000</z>
+      </rotation>
+    </spawn-point>
+  </spawn-points>
+  <bonus-regions>
+    <bonus-region name="bonus1" free="false">
+      <position>
+        <x>-500.000</x>
+        <y>-500.000</y>
+        <z>0.000</z>
+      </position>
+      <rotation>
+        <z>0.000000</z>
+      </rotation>
+      <min>
+        <x>-750.000</x>
+        <y>-750.000</y>
+        <z>0.000</z>
+      </min>
+      <max>
+        <x>-250.000</x>
+        <y>-250.000</y>
+        <z>300.000</z>
+      </max>
+      <bonus-type>damageup</bonus-type>
+    </bonus-region>
+  </bonus-regions>
+</map>
+```
+
+---
+
+## `.lvl` binary format
+
+The `.lvl` format is the editor's native save file. It is a flat stream of variable-length records with no file header, no version field, and no record count. Parsing continues until the end of the file or until a record runs past the last byte.
+
+### Encoding
+
+- **Byte order:** big-endian throughout, matching the default `Endian.BIG_ENDIAN` of AS3's `FileStream`. Do not confuse with the `.3ds` parser which explicitly uses little-endian.
+- **UTF string encoding:** each string is written as a big-endian `uint16` byte-length prefix followed by that many raw UTF-8 bytes (identical to AS3's `writeUTF` / `readUTF`).
+- **Float:** IEEE 754 single-precision (32-bit), big-endian.
+- **Bool:** single byte, `0x00` = false, `0x01` = true.
+
+### Record layout
+
+Each record encodes one prop. Fields appear in the following order with no padding between them:
+
+| Offset (relative) | Type | Field | Description |
+|---|---|---|---|
+| 0 | `uint16` | library length | Byte length of the library string. |
+| 2 | UTF-8 bytes | library | Library name (e.g. `Buildings`). |
+| +0 | `uint16` | group length | Byte length of the group string. |
+| +2 | UTF-8 bytes | group | Group name within the library. |
+| +0 | `uint16` | name length | Byte length of the name string. |
+| +2 | UTF-8 bytes | name | Prop name within the group. |
+| +0 | `float32` | x | Sim-space X coordinate. |
+| +4 | `float32` | y | Sim-space Y coordinate. |
+| +8 | `float32` | z | Sim-space Z coordinate. |
+| +12 | `float32` | rotationZ | Rotation in radians about sim +Z. |
+| +16 | `uint8` | free | `0` = in occupancy map, `1` = exempt. |
+| +17 | `uint16` | textureName length | Byte length of the texture-name string. |
+| +19 | UTF-8 bytes | textureName | Texture variant name; empty string for non-tile props. |
+
+**Minimum record size:** 25 bytes — four zero-length strings (each `uint16` prefix only: 4 × 2 = 8 bytes) plus four floats (16 bytes) plus one bool (1 byte).
+
+The parse loop therefore requires at least 25 bytes of remaining data before reading a record. Any shorter tail is discarded and `truncated` is set to `true` in the result.
+
+<Note>
+The `mirror` field is **not** written or read. The original ActionScript exporter contained the mirror write in commented-out code (`BinaryExporter.as:38`, `BinaryImporter.as:52`) and it was never activated. This port keeps the same behaviour so that `.lvl` files produced by the original AIR editor remain fully compatible. Mirror state is therefore only preserved in the Tanks XML format.
+</Note>
+
+### Functional props
+
+Spawn points, bonus regions, and CTF flags are stored with the synthetic `'Functional'` library name and the following group names, which `importLvl` recognises without a library lookup:
+
+| Kind | `library` | `group` |
+|---|---|---|
+| `spawn` | `Functional` | `Spawn Points` |
+| `bonus` | `Functional` | `Bonus Regions` |
+| `flag` | `Functional` | `Flags` |
+
+The original AIR editor could not round-trip these props through `.lvl` because it required a real props library named `'Functional'` (which does not exist in the shipped asset set). This port resolves them by group name instead.
+
+### Skipped and truncated records
+
+- A record whose `library` / `group` / `name` triple cannot be resolved against any loaded library is **skipped** and counted in `LvlImportResult.skipped`. The byte cursor advances past the full record (including the unresolvable strings), so subsequent records are unaffected.
+- If the file ends mid-record (e.g. a truncated download or a corrupted save), parsing stops immediately and `LvlImportResult.truncated` is set to `true`. All fully-parsed props are still returned.
+
+### `LvlImportResult` interface
+
+```typescript
+export interface LvlImportResult {
+  /** Successfully parsed props, in file order. */
+  props: Prop[];
+  /** Number of records whose library/group/name resolved to no known prop. */
+  skipped: number;
+  /**
+   * True when the file ended mid-record.
+   * Whatever was parsed before the truncation is still returned in `props`.
+   */
+  truncated: boolean;
+}
+```
+
+<Warning>
+`.lvl` files produced by the original AIR editor may contain props whose library is not present in the current asset set (e.g. a map built with a library that was later removed from the game). Each unresolvable record increments `skipped` and is silently dropped. The status bar in the editor reports the count: `"N props, M skipped"`.
+</Warning>

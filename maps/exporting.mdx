@@ -1,0 +1,138 @@
+---
+title: "Exporting Maps as Tanks XML or .lvl Files"
+sidebarTitle: "Exporting"
+description: "Export your map as a game-ready Tanks XML file or save it in the editor's native .lvl binary format. Learn what gets written and how collision geometry is derived."
+---
+
+When you are ready to publish a map or save your progress, the SkillTanki Editor offers two output operations. **Export to Tanks** produces a `.xml` file that the game loads directly — collision geometry included. **Save / Save as** writes a compact `.lvl` binary that the editor itself reads back, suited for iterating on a map over multiple sessions. Both operations download a file through the browser; there is no server-side storage.
+
+<Warning>
+Both export and save operations clear the `doc.changed` flag, marking the document as unmodified. However, opening a new map or file does **not** prompt you to save unsaved changes first. Make sure to export or save before loading a different map.
+</Warning>
+
+---
+
+## Export to Tanks XML
+
+**Menu:** File → Export to Tanks  
+**Shortcut:** `Ctrl+T`
+
+This is the primary output operation. The resulting `.xml` file contains static geometry, full collision primitives, spawn points, bonus regions, and CTF flags — everything the game needs to load and play the map.
+
+### Export workflow
+
+<Steps>
+  <Step title="Press Ctrl+T or choose File → Export to Tanks">
+    The exporter immediately serialises the current document to an XML string in memory. No file picker is shown; the filename is derived from the current map name.
+  </Step>
+  <Step title="File is named automatically">
+    The editor strips any existing extension from the current map name and appends `.xml`. Characters that are illegal in filenames (`\ / : * ? " < > |`) are replaced with underscores. For example, loading `island_old_summer` via the URL parameter produces `island_old_summer.xml`; a new untitled document produces `untitled.xml`.
+  </Step>
+  <Step title="Download is triggered">
+    A `Blob` is created from the XML string with MIME type `application/xml`. A hidden `<a>` element is added to the document, its `href` set to a temporary object URL, and `link.click()` is called. The link is then removed and the object URL is revoked. This approach is compatible with Safari, which ignores the `download` attribute on links that are not in the document.
+  </Step>
+  <Step title="Status bar confirms the export">
+    The status bar updates to `Exported <filename>` and `doc.changed` is set to `false`.
+  </Step>
+</Steps>
+
+### What goes into the XML
+
+The exporter iterates every prop in the document and routes it to the appropriate XML section:
+
+| Section | Content |
+|---|---|
+| `<static-geometry>` | All tile and sprite props as `<prop>` elements |
+| `<collision-geometry>` | Box, plane, and triangle primitives extracted from each prop's `.3ds` at export time |
+| `<spawn-points>` | All spawn point props as `<spawn-point>` elements |
+| `<bonus-regions>` | All bonus region props as `<bonus-region>` elements with `<min>`, `<max>`, and `<bonus-type>` children |
+| `<ctf-flags>` | Red and blue CTF flag positions as `<flag-red>` / `<flag-blue>` elements; this section is only appended if at least one flag is present |
+
+### Collision geometry derivation
+
+Collision primitives are derived on the fly from each prop's `.3ds` file. The exporter:
+
+1. Looks up the cached `.3ds` parse for the prop's `library`, `group`, and `name`.
+2. Scans the child mesh list for meshes whose names start with `box*`, `plane*`, or `tri*`.
+3. Calls `buildPrimitives` to convert those meshes into typed `CollisionPrimitive` objects.
+4. Applies the prop's own transform — first a Z-axis rotation, then a translation to the prop's world position — to each primitive before writing it to `<collision-geometry>`.
+5. Caches the result under the key `library|group|name` so each unique prop type is processed only once per export, regardless of how many instances are on the map.
+
+<Info>
+Triangle primitives (`tri*` child meshes → `<triangle>` elements) are new in this TypeScript port. The original 2010 AIR exporter silently discarded them. Because every shipped ramp and bridge depends on triangle collision, maps exported from the original editor were unplayable on those surfaces. The SkillTanki Editor exports them correctly.
+</Info>
+
+### Pretty-print format
+
+The XML is serialised with 2-space indentation and no XML declaration, matching the layout of the shipped summer maps. Each element with text content is written on a single line; container elements span multiple lines. Attribute values and text content are XML-escaped (`&amp;`, `&lt;`, `&gt;`, `&quot;`).
+
+---
+
+## Save / Save as (`.lvl` binary)
+
+**Menu:** File → Save / File → Save as...  
+**Shortcuts:** `Ctrl+S` (Save) / `Ctrl+Alt+S` (Save as)
+
+Saves the current document as the editor's native `.lvl` binary format. Both menu items and both shortcuts invoke the same operation: the editor does not maintain a "current file path" (the browser has no file system access), so every save is effectively a "save as."
+
+### Save workflow
+
+<Steps>
+  <Step title="Press Ctrl+S or choose File → Save">
+    The exporter serialises every prop in the document to a big-endian byte stream.
+  </Step>
+  <Step title="File is named automatically">
+    The same filename logic as XML export applies: the current map name has its extension stripped and `.lvl` is appended. Special characters are replaced with underscores.
+  </Step>
+  <Step title="Download is triggered">
+    A `Blob` is created with MIME type `application/octet-stream`. A hidden `<a>` element triggers the download in the same Safari-safe way as XML export.
+  </Step>
+  <Step title="Status bar confirms the save">
+    The status bar shows `Saved <filename> (<N> bytes)` and `doc.changed` is set to `false`.
+  </Step>
+</Steps>
+
+### What goes into the `.lvl`
+
+Every prop — including tiles, sprites, spawn points, bonus regions, and CTF flags — is written as one binary record in document order. Functional props (spawns, bonuses, flags) use the synthetic library name `Functional`. Collision geometry is **not** stored in the `.lvl`; it is always re-derived from the `.3ds` files at export time.
+
+Each record contains:
+
+```
+library     UTF (uint16 byte length + UTF-8 bytes)
+group       UTF
+name        UTF
+x           float32 big-endian
+y           float32 big-endian
+z           float32 big-endian
+rotationZ   float32 big-endian  (radians)
+free        bool (1 byte)
+textureName UTF  ("" for non-tiles)
+```
+
+---
+
+## Filename derivation
+
+Both export paths use the same `withExtension` helper:
+
+1. Strip any existing file extension up to 8 characters (e.g. `.xml`, `.lvl`, `.3ds`).
+2. Replace any characters from `\ / : * ? " < > |` with underscores.
+3. If the result is empty, fall back to `"untitled"`.
+4. Append the target extension (`.xml` or `.lvl`).
+
+This ensures the file never lands as `map.xml.lvl` or ends up extension-less.
+
+---
+
+## Keyboard shortcut reference
+
+| Operation | Shortcut |
+|---|---|
+| Export to Tanks XML | `Ctrl+T` |
+| Save as `.lvl` | `Ctrl+S` |
+| Save as `.lvl` (explicit) | `Ctrl+Alt+S` |
+| Import from Tanks XML | `Ctrl+I` |
+| Open `.lvl` | `Ctrl+O` |
+
+On macOS, `Cmd` substitutes for `Ctrl`. Shortcuts use key code comparison, so they work on non-Latin keyboard layouts.

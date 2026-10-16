@@ -1,0 +1,62 @@
+---
+title: "SkillTanki Editor: Browser-Based Tank Map Editor"
+sidebarTitle: "Introduction"
+description: "SkillTanki Editor is a TypeScript/PlayCanvas port of the 2010 AIR level editor. Edit maps with 11 prop libraries, undo/redo, and export game-ready Tanks XML."
+---
+
+SkillTanki Editor is a browser-based map editor for the SkillTanki tank game. Open the page and the default map loads within seconds, complete with all 11 prop libraries pre-populated in the palette. Place props on the grid, rotate them, swap texture variants, drop spawn points, bonus regions, and CTF flags — then export a Tanks XML file the game reads without any conversion step. No install, no account, no plugin required.
+
+## Origin
+
+The editor is a TypeScript and PlayCanvas port of the original 2010 level editor, which was built in Adobe AIR and ActionScript 3. The original shipped with the game and was the tool used to create every bundled map. This port reproduces the same workflow and shortcut layout so existing level designers can work without relearning the tool, while fixing several long-standing limitations of the AIR version.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="11 Prop Libraries" icon="cubes">
+    Every prop library the game ships is loaded up front: Buildings, Builds, Castle, Complex Build, Elements, Land, Landscape, kahgel, kariz, yonje, and zamin. Each library contains `.3ds` meshes with named diffuse texture variants and billboard sprites such as trees. The full palette is available from the moment the editor opens.
+  </Card>
+  <Card title="53 Classic Maps" icon="map">
+    The game's complete bundled summer set — 53 maps — is openable from the registry by appending `?map=<id>` to the URL. Each map's light XML is fetched first so the loading bar counts real files rather than guessing at totals.
+  </Card>
+  <Card title="Functional Props" icon="flag">
+    Spawn points, bonus regions, and CTF flags are first-class citizens rendered as procedural gizmos. The original AIR editor dropped them on load because they required a prop library that never existed. Here they survive import, edit, save, and export unchanged.
+  </Card>
+  <Card title="Undo / Redo" icon="arrow-rotate-left">
+    Every mutating operation — add, delete, copy, move, rotate, and texture change — is recorded in an event journal and fully reversible. Texture changes were not undoable in the original editor; they are here.
+  </Card>
+  <Card title="Collision View" icon="vector-square">
+    **Option → Collision boxes** overlays the collision primitives of every tile: the same boxes, planes, and triangles that appear in the exported Tanks XML. Toggle it on to inspect coverage without leaving the editor.
+  </Card>
+  <Card title="Snap and Occupancy Grid" icon="grid">
+    The placement lattice is 5 m on X/Y and 3 m vertically. In snap mode every prop is seated in a sparse occupancy map, and conflicts are detected immediately. Press **Q** to select any props that conflict with the current placement.
+  </Card>
+</CardGroup>
+
+## File Formats
+
+The editor reads and writes two formats.
+
+**Tanks XML** (`File → Export to Tanks` / `File → Import from Tanks`) is the map format the game reads directly. Element order, attribute names, and number formatting match the shipped maps byte-for-byte: positions to three decimal places, rotations to six. Collision primitives are derived from the `box*`, `plane*`, and `tri*` child meshes of each tile's `.3ds`. Triangle collision is new in this port — the original exporter silently dropped triangles, even though every shipped map relies on them for ramps and bridges.
+
+**`.lvl`** (`File → Open` / `File → Save` / `File → Save as`) is the editor's own binary format: a big-endian stream of records holding library, group, name, position, rotation, the free flag, and the texture name. Existing `.lvl` files from the AIR editor load without modification. If a record names a prop that no loaded library provides, it is skipped and counted rather than aborting the parse.
+
+Because the editor runs as a browser tab it uses a file picker for reading and a download for writing — there is no AIR-style native file dialog.
+
+## What Changed vs the Original
+
+| Area | Original AIR editor | This port |
+|---|---|---|
+| Triangle collision | Silently dropped on export | Exported from `tri*` child meshes |
+| Functional props | Dropped on load | Survive import, save, and export |
+| Texture undo | Not supported | Included in the undo journal |
+| `.lvl` parse errors | Aborted on unknown prop | Skips and counts unknown records |
+| Multi-prop undo | Operated on `props.peek()` only | Operates on the full selection set |
+
+## How It Renders
+
+The editor is built on the [PlayCanvas](https://playcanvas.com/) engine. One `pc.Application` instance owns the canvas and drives a single scene graph. Because PlayCanvas uses a Y-up coordinate system and the game's simulation space is Z-up, a `simRoot` entity sits at the root of the scene with a −90° X rotation and a scale of `0.01` (1 sim unit = 1 cm = 0.01 world metres). All map content is parented under `simRoot` in raw simulation coordinates, which keeps map data and rendering conventions cleanly separated.
+
+<Note>
+  The editor is designed for **desktop browsers only**. It relies on a physical keyboard for the full shortcut set (Ctrl/Cmd+Z undo, arrow keys, numpad camera navigation, and others), and on a mouse with a middle button for viewport panning and rotation. It has not been tested on mobile or tablet browsers and is not expected to work correctly on them.
+</Note>

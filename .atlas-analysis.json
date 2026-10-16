@@ -1,0 +1,103 @@
+{
+  "projectType": "frontend",
+  "projectName": "SkillTanki Editor",
+  "projectDescription": "A browser-based map editor for SkillTanki — a TypeScript/PlayCanvas port of the original 2010 AIR level editor — letting you place props, define spawn points and bonus regions, and export game-ready Tanks XML maps without installing anything.",
+  "theme": "almond",
+  "primaryColor": "#8ee07c",
+  "lightColor": "#545249",
+  "darkColor": "#c4b5a7",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guide",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Using the Editor",
+            "pages": [
+              "editor/interface",
+              "editor/placing-props",
+              "editor/functional-props",
+              "editor/camera-controls"
+            ]
+          },
+          {
+            "group": "Maps & Files",
+            "pages": [
+              "maps/opening-maps",
+              "maps/file-formats",
+              "maps/exporting"
+            ]
+          },
+          {
+            "group": "Building & Deploying",
+            "pages": [
+              "development/build",
+              "development/asset-pipeline",
+              "development/deployment"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Keyboard & Toolbar",
+            "pages": [
+              "reference/shortcuts",
+              "reference/toolbar"
+            ]
+          },
+          {
+            "group": "Source Architecture",
+            "pages": [
+              "reference/architecture",
+              "reference/prop-model",
+              "reference/file-format-spec"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Full prop palette with 11 libraries (Buildings, Builds, Castle, Complex Build, Elements, Land, Landscape, kahgel, kariz, yonje, zamin)",
+    "53 classic summer maps openable by URL (?map=<id>) or file picker",
+    "Functional props (spawn points, bonus regions, CTF flags) fully round-trip through import/export",
+    "Occupancy grid snap with conflict detection (Q selects conflicting props)",
+    "Undo/redo via event journal covering add, delete, copy, move, rotate, and texture change",
+    "Collision view renders box/plane/triangle primitives extracted from .3ds meshes",
+    "Exports game-ready Tanks XML with correct collision geometry including triangles",
+    "Reads and writes the original AIR editor's binary .lvl format",
+    "No install, no account — runs fully in a desktop browser from a static build",
+    "Production bundle minified with terser and obfuscated; assets served from Cloudflare R2"
+  ],
+  "publicApiSurface": [
+    "exportTanksXml(props, options) — builds the full map XML string",
+    "exportLvl(props) — encodes the editor's native binary .lvl format",
+    "importLvl(buffer, resolve) — parses a .lvl file into Prop[]",
+    "importTanksXml(mapXml, options) — parses a Tanks map XML into Prop[]",
+    "EditorDocument.addProp(prop, addToMap?) — adds a prop to the scene and occupancy grid",
+    "EditorDocument.deleteProps(props?) — removes props from scene and grid",
+    "EditorDocument.clear() — wipes the entire document",
+    "EditorDocument.undo() / redo() — traverses the event journal",
+    "EditorDocument.toXml() / toLvl() — serialise the current document",
+    "EditorDocument.loadXml(mapXml, onParsed?) — imports a Tanks XML into the document",
+    "EditorDocument.loadLvl(buffer, onParsed?) — imports a .lvl file into the document",
+    "EditorCamera.orbit(deltaYawDeg, deltaPitchDeg) — rotates the orbit camera",
+    "EditorCamera.pan(dxUnits, dyUnits) — pans the orbit target",
+    "EditorCamera.dolly(factor) — zooms by multiplying distance",
+    "PropRenderer.loadLibraries(entries) — fetches and parses all prop library XMLs",
+    "PropRenderer.attach(prop, parent) — builds a PlayCanvas entity for a prop",
+    "PropRenderer.applyTexture(prop) — swaps the active texture variant",
+    "Prop class — data model with kind, library, group, name, x/y/z, rotationZ, textureName, free, hidden",
+    "window.__editor — debug/tooling handle exposing app, doc, editorCamera, renderer, simRoot and helpers"
+  ]
+}

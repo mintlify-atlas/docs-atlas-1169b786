@@ -1,20 +1,68 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "SkillTanki Editor: Browser Map Editor for SkillTanki"
+sidebarTitle: "Home"
+description: "A browser-based map editor for SkillTanki. Place props, set spawn points, export game-ready Tanks XML — no install, no account required."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+SkillTanki Editor is a full-featured level editor that runs entirely in your desktop browser. It is a TypeScript/PlayCanvas port of the original 2010 AIR level editor, shipping every prop library and 53 classic maps so you can open, edit, and export game-ready maps without installing anything.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="book-open" href="/introduction">
+    Learn what the editor does, how it compares to the original, and what file formats it supports.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Clone the repo, run the dev server, and open your first map in under five minutes.
+  </Card>
+  <Card title="Using the Editor" icon="map" href="/editor/interface">
+    Explore the workspace, prop palette, preview pane, and every toolbar control.
+  </Card>
+  <Card title="Maps & Files" icon="file-export" href="/maps/opening-maps">
+    Open classic maps by URL, import Tanks XML, save and load the native .lvl format.
+  </Card>
+  <Card title="Building & Deploying" icon="gear" href="/development/build">
+    Build locally or for production, manage the asset pipeline, and deploy to Cloudflare.
+  </Card>
+  <Card title="Keyboard Reference" icon="keyboard" href="/reference/shortcuts">
+    Every shortcut for props, camera, menus, and toolbar — all in one place.
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## What you can do
+
+<Steps>
+  <Step title="Open a map">
+    Visit the editor and a classic map loads automatically. Choose any of the 53 bundled summer maps via the `?map=<id>` URL parameter, or use **File → Import from Tanks** to open your own XML file.
+  </Step>
+  <Step title="Build your level">
+    Pick props from the accordion palette on the right. Click a prop to attach it to your cursor, then press **Space** to place it. Rotate with **X** / **Z**, move with arrow keys or drag, and copy by holding **Shift** while dragging.
+  </Step>
+  <Step title="Add spawn points and bonus regions">
+    Functional props — spawn points, bonus regions, and CTF flags — live under the **Functional** library. Place them exactly like tiles; they survive export and import correctly.
+  </Step>
+  <Step title="Export your map">
+    Press **Ctrl+T** (or **File → Export to Tanks**) to download a game-ready XML file. The editor derives all collision geometry from the `.3ds` meshes, including triangle primitives needed for ramps and bridges.
+  </Step>
+</Steps>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="11 Prop Libraries" icon="cubes">
+    Every prop library the game ships: Buildings, Builds, Castle, Complex Build, Elements, Land, Landscape, kahgel, kariz, yonje, and zamin — all loaded up front in the palette.
+  </Card>
+  <Card title="53 Classic Maps" icon="map-location-dot">
+    The full bundled summer set, each openable from the registry with `?map=<id>` or from a local file. Collision view, snap, and undo all work on imported maps.
+  </Card>
+  <Card title="Full Undo / Redo" icon="rotate-left">
+    An event journal tracks every add, delete, copy, move, rotate, and texture change — including multi-prop operations. Texture changes were not undoable in the original editor.
+  </Card>
+  <Card title="Collision View" icon="cube">
+    Toggle **Option → Collision boxes** to see the box, plane, and triangle primitives extracted from each tile's `.3ds` mesh — the same geometry written to the exported XML.
+  </Card>
+  <Card title="Occupancy Snap" icon="grid">
+    A 5 m × 5 m × 3 m lattice keeps props aligned. Snap mode registers every placed prop in a sparse occupancy map and flags conflicts immediately; press **Q** to select them.
+  </Card>
+  <Card title="No Install Required" icon="globe">
+    The editor is a static web app. Open the URL in a desktop browser and start editing. No account, no download, no runtime dependencies beyond the browser itself.
+  </Card>
+</CardGroup>

@@ -1,0 +1,213 @@
+---
+title: "Prop Data Model and PropKind Types"
+sidebarTitle: "Prop Model"
+description: "Reference for the Prop class in SkillTanki Editor: fields, kinds, extent calculation, snap behavior, and the public methods used by EditorDocument."
+---
+
+Every object in an editor level — a concrete tile, a billboard tree, a spawn point, a bonus region, or a CTF flag — is an instance of the `Prop` class defined in `src/prop/Prop.ts`. The class is a plain data object: it stores coordinates, identity, and occupancy extents, and carries an optional reference to its PlayCanvas entity. All scene-graph operations are delegated to `PropRenderer`; all level-state operations go through `EditorDocument`. This separation means a `Prop` can be constructed, cloned, and serialised without touching the renderer at all.
+
+---
+
+## PropKind
+
+The `PropKind` union discriminates the five prop categories:
+
+```typescript
+export type PropKind = 'tile' | 'sprite' | 'spawn' | 'bonus' | 'flag';
+```
+
+| Kind | Description |
+|---|---|
+| `tile` | A solid 3D mesh loaded from a `.3ds` file. Has named texture variants, contributes collision geometry to the exported XML, and occupies grid cells. |
+| `sprite` | A billboard quad (trees, bushes, and similar decoration). Uses a single PNG texture with an alpha channel. Sprites have zero-width extents and do **not** occupy any grid cells. |
+| `spawn` | A spawn-point gizmo with no real mesh. Drawn as a coloured semi-transparent box by `PropRenderer`. Uses fixed extents of H_BASE × H_BASE × V_BASE. Rotates in 5° steps instead of 90°. |
+| `bonus` | A bonus-region gizmo. Carries a `types` Set that names the bonus type(s) the region grants. Min/max bounds are stored as `distancesX/Y/Z` extents relative to the prop's centre. |
+| `flag` | A CTF flag gizmo. The `name` field is always `'red_flag'` or `'blue_flag'`; this value selects the gizmo colour and the XML element tag used on export. |
+
+---
+
+## Grid constants
+
+The placement lattice is defined by three constants imported from `src/core/EditorScene`:
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `H_BASE` | 250 sim units | Half the horizontal cell size (2.5 m). Used as the occupancy-map step. |
+| `H_BASE2` | 500 sim units | Full horizontal cell size (5 m). Snap target for single-cell props. |
+| `V_BASE` | 300 sim units | Full vertical cell size (3 m). Snap target and step for the Z axis. |
+
+A single cell is therefore 5 m × 5 m × 3 m in game metres.
+
+---
+
+## The `Extent` interface
+
+```typescript
+export interface Extent {
+  /** Offset to the lower edge from the prop centre (negative or 0). */
+  min: number;
+  /** Offset to the upper edge from the prop centre (positive). */
+  max: number;
+}
+```
+
+All three axis extents are measured in sim units, relative to the prop's `(x, y, z)` centre. The occupancy map uses them to enumerate every grid cell the prop covers.
+
+---
+
+## PropInit and constructor
+
+```typescript
+export interface PropInit {
+  kind: PropKind;
+  library: string;
+  group: string;
+  name: string;
+  /**
+   * Mesh-local vertex positions (xyz triplets) from the parsed .3ds body
+   * object. Passed in by PropRenderer after parsing; omit for gizmos.
+   */
+  positions?: number[] | null;
+}
+
+// Constructor signature:
+constructor(init: PropInit)
+```
+
+The constructor sets `kind`, `library`, `group`, and `name` from `init`, then initialises extents according to the kind:
+
+- **`spawn` / `flag`** — fixed extents: `distancesX` = `distancesY` = `{min: −H_BASE, max: H_BASE}`, `distancesZ` = `{min: 0, max: V_BASE}`.
+- **`sprite`** — zero extents: `{min: 0, max: 0}` on all axes.
+- **`tile`** (with positions) — calls `calculate(positions)` to measure the extents.
+- **`bonus`** — defaults to one cell in each direction; `types` is pre-seeded with `'damageup'`.
+
+---
+
+## Field reference
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `PropKind` | Immutable discriminant set at construction. |
+| `library` | `string` | Immutable library name (e.g. `'Buildings'`). Matches the `name` in `editor-props.json`. |
+| `group` | `string` | Immutable group within the library (e.g. `'Hangar'`). |
+| `name` | `string` | **Mutable.** Prop name within the group. Also carries the bonus type for bonus props and the spawn type (e.g. `'dm'`, `'red'`) for spawn props. |
+| `x` | `number` | Sim-space X coordinate (positive right). |
+| `y` | `number` | Sim-space Y coordinate (positive forward). |
+| `z` | `number` | Sim-space Z coordinate (positive up). |
+| `rotationZ` | `number` | Rotation in radians about sim +Z. Stored and exported as-is; 6-decimal precision in XML. |
+| `textureName` | `string` | Tile only. The selected `<texture>` variant name from `library.xml`. Empty string for non-tile kinds. |
+| `isMirror` | `boolean` | Tile only. Set by the F key (mirror texture). Written to the XML `mirror` attribute but never read back by the original game — preserved for round-trip compatibility. |
+| `types` | `Set<string>` | Bonus only. The set of `<bonus-type>` strings this region grants. Initialised to `{'damageup'}` by the constructor. |
+| `free` | `boolean` | When `true` the prop is **not** entered in the occupancy map. Newly constructed props start `free = true`; `OccupyMap.occupy()` sets it to `false`. |
+| `selected` | `boolean` | Managed by `Viewport`; drives `PropRenderer.setTint()`. |
+| `hidden` | `boolean` | Set by the "Hide selected" toolbar button. A hidden prop is excluded from picking and skipped by the toggle-all "Show all" action. |
+| `distancesX` | `Extent` | X-axis occupancy extent from the prop centre. |
+| `distancesY` | `Extent` | Y-axis occupancy extent from the prop centre. |
+| `distancesZ` | `Extent` | Z-axis occupancy extent from the prop centre. |
+| `multi` | `boolean` | `true` when the prop spans more than one cell in X or Y. Multi-cell props snap to H_BASE2 grid **lines** (floor) rather than cell **centres** (round). |
+| `entity` | `pc.Entity \| null` | The PlayCanvas scene entity. `null` until `PropRenderer.attach()` runs. Managed exclusively by `PropRenderer`; callers should not set this directly. |
+
+---
+
+## `calculate(positions)`
+
+Called by the constructor (when positions are supplied) and by `PropRenderer.attachAll` after the `.3ds` has been parsed and its body object is available.
+
+```
+O(n) min/max pass over all xyz triplets in the positions array
+→ clamps each axis to the nearest grid boundary via calcDistance()
+→ widens zero-width extents to one cell
+→ sets multi = true when the X or Y span exceeds one H_BASE2 cell
+```
+
+The original ActionScript implementation compared every vertex pair (O(n²)) to find the most distant pair per axis. For axis-aligned measurement this is mathematically identical to finding min/max, so the result is the same at O(n) cost. Extents are measured in **mesh-local space**, making them placement-independent and cacheable by `library|group|name`.
+
+<Note>
+A degenerate extent where `min === max` (a flat mesh on one axis, such as Slope 1/2) would claim zero occupancy cells and could never conflict with anything. The `widen()` helper expands such extents to one cell. The original avoided this only because it measured vertices in global space after placement — the floor split landed differently. Measuring in mesh space is what makes extents cacheable.
+</Note>
+
+---
+
+## `snapCoords()`
+
+Aligns the prop's X/Y/Z to the nearest grid boundary:
+
+```
+multi === true  → x = floor(x / H_BASE2) * H_BASE2   (snap to grid lines)
+                  y = floor(y / H_BASE2) * H_BASE2
+multi === false → x = round(x / H_BASE2) * H_BASE2   (snap to cell centres)
+                  y = round(y / H_BASE2) * H_BASE2
+always          → z = floor(z / V_BASE)  * V_BASE
+```
+
+Called on the cursor prop whenever it moves in snap mode, and on every selected prop during drag/arrow-key movement.
+
+---
+
+## `rotate(plus)`
+
+Rotates the prop by one step and updates the occupancy extents so the footprint turns with the mesh.
+
+| Kind | Step |
+|---|---|
+| `spawn` | 5° (`Math.PI / 36`) — adjusts `rotationZ` only, no extent swap. |
+| All others | 90° (`Math.PI / 2`) — swaps `distancesX` and `distancesY` with sign inversion so the occupancy footprint matches the new orientation. |
+
+For a 90° clockwise rotation (`plus = true`):
+
+```
+new distancesX = old distancesY
+new distancesY = { min: −old.distancesX.max, max: −old.distancesX.min }
+rotationZ     −= Math.PI / 2
+```
+
+The reverse applies for counter-clockwise (`plus = false`).
+
+---
+
+## `clone()`
+
+Returns a deep copy of the prop with all fields duplicated. The `types` `Set` is reconstructed (`new Set(this.types)`), the three `Extent` objects are spread-copied, and `entity` is **not** copied (the clone starts unattached). The `selected` and `hidden` flags are also not copied — a fresh clone always starts unselected and visible.
+
+```typescript
+clone(): Prop {
+  const copy = new Prop({
+    kind: this.kind,
+    library: this.library,
+    group: this.group,
+    name: this.name,
+  });
+  copy.distancesX = { ...this.distancesX };
+  copy.distancesY = { ...this.distancesY };
+  copy.distancesZ = { ...this.distancesZ };
+  copy.multi = this.multi;
+  copy.textureName = this.textureName;
+  copy.isMirror = this.isMirror;
+  copy.types = new Set(this.types);
+  copy.x = this.x;
+  copy.y = this.y;
+  copy.z = this.z;
+  copy.rotationZ = this.rotationZ;
+  return copy;
+}
+```
+
+`EditorDocument.addProp` always works on a clone: the cursor prop is never placed directly into the level — a clone is placed and the cursor continues to follow the pointer.
+
+---
+
+## Functional props
+
+Spawn points, bonus regions, and CTF flags are stored in the level under the synthetic library name `'Functional'` with the following group names:
+
+| Kind | library | group |
+|---|---|---|
+| `spawn` | `'Functional'` | `'Spawn Points'` |
+| `bonus` | `'Functional'` | `'Bonus Regions'` |
+| `flag` | `'Functional'` | `'Flags'` |
+
+This convention lets `LvlFormat` round-trip functional props through the binary format by reading the `library` and `group` strings rather than looking the prop up in a real props library (which does not exist in the shipped asset set).
+
+<Tip>
+When the game XML refers to a spawn point's `type` attribute (e.g. `type="dm"`) that value is stored in `prop.name`. The exporter writes it back as the `type` attribute on export, so the round-trip is exact.
+</Tip>

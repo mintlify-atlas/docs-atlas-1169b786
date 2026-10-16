@@ -1,0 +1,160 @@
+---
+title: "SkillTanki Editor Asset Pipeline and Data Layout"
+sidebarTitle: "Asset Pipeline"
+description: "Understand how prop libraries, maps, and registries are organized, synced from the monorepo, and served in development and production builds."
+---
+
+The editor's data layer is split into two categories: the **JavaScript bundle** produced by Vite, and the **data tree** of prop libraries, maps, and registry files that the running editor fetches at runtime. In development these two things live side by side under a single origin; in production the bundle is served from one host while the data tree is streamed from Cloudflare R2.
+
+<Note>
+  In a standalone checkout of the editor package, `public/` is already fully populated. All prop libraries, the 53 bundled maps, both registry JSON files, and the loading-bar sprites are committed to the repository (binary files via git LFS). You do **not** need to run any sync script to get a working development environment — `npm install && npx vite` is enough.
+</Note>
+
+## public/ directory layout
+
+During development Vite serves the `public/` directory at the site root alongside the compiled source. The directory has the following structure:
+
+```
+public/
+├── editor-maps.json          # Map registry (id, name, theme, file path, optional visual overrides)
+├── editor-props.json         # Prop library registry (name, folder, library.xml path)
+├── logo.png                  # Editor favicon / logo
+├── maps/
+│   └── summer/
+│       └── <map_id>.xml      # Map XML files (one per bundled map, 53 total)
+├── props/
+│   └── <library>/            # One folder per prop library, name lowercased
+│       ├── library.xml       # Prop library descriptor (groups, meshes, texture variants)
+│       ├── <prop>.3ds        # 3D Studio mesh files
+│       └── <texture>.jpg     # Diffuse and opacity texture files
+└── embedded/
+    └── ui/
+        ├── life_left.png     # Loading-bar left cap sprite
+        ├── life_center.png   # Loading-bar fill strip sprite
+        └── life_right.png    # Loading-bar right cap sprite
+```
+
+All directory names under `props/` are lowercased (e.g. `buildings_v1_old`, `castle_old`). File names inside each library folder are also stored in lowercase. This normalisation is applied by `scripts/sync-assets.mjs` when it builds `public/` from the monorepo source tree, ensuring the client can construct asset URLs by simple string concatenation without needing to guess the original capitalisation.
+
+## Registry files
+
+### editor-maps.json
+
+The map registry lists every map the editor can open and identifies the default map that loads on first visit. Each entry carries the minimum fields needed to populate the map picker, plus optional fields for per-map visual overrides.
+
+```json
+{
+  "defaultMap": "island_old_summer",
+  "maps": [
+    {
+      "id": "arena_old_summer",
+      "name": "Arena",
+      "theme": "summer",
+      "file": "/maps/summer/arena_old_summer.xml",
+      "thumbnail": "assets/Thumbnails/maps/arena_old_summer.jpg",
+      "skybox": "skybox6",
+      "visual": {
+        "lightColor": "#c7bdab",
+        "shadowColor": "#54646f",
+        "fogColor": "#ddf1ff",
+        "fogAlpha": 0.25,
+        "nearLimit": 5000,
+        "farLimit": 10000,
+        "angleX": -1,
+        "angleZ": -0.5,
+        "dustParticle": "summer",
+        "dustDensity": 0.15,
+        "dustSize": 200,
+        "dustAlpha": 0.75,
+        "dustNearDistance": 5000,
+        "dustFarDistance": 7000
+      }
+    }
+  ]
+}
+```
+
+The `id` field also controls the `?map=<id>` query parameter — navigating to `?map=arena_old_summer` opens that map directly. The `visual` and `skybox` fields are optional; maps that omit them use the renderer's defaults.
+
+### editor-props.json
+
+The prop library registry lists every library available in the palette. Each entry points to that library's `library.xml` descriptor file:
+
+```json
+{
+  "libraries": [
+    {
+      "name": "Buildings v1 Old",
+      "folder": "buildings_v1_old",
+      "file": "/props/buildings_v1_old/library.xml"
+    },
+    {
+      "name": "Castle Old",
+      "folder": "castle_old",
+      "file": "/props/castle_old/library.xml"
+    }
+  ]
+}
+```
+
+The registry is sorted alphabetically by `name`. On startup the editor fetches `editor-props.json`, then loads every `library.xml` in parallel to build the prop palette.
+
+## Prop library XML
+
+Each library folder contains a `library.xml` (some older libraries use `library.tara`) that describes the library's groups and props. The renderer parses this file to build the accordion entries in the Props panel. Mesh filenames referenced inside the XML are lowercased at sync time so the client can use them verbatim as URL path segments.
+
+A prop entry in the XML references a `.3ds` mesh file and one or more named diffuse texture variants, plus an optional opacity map for billboard sprites (trees, shrubs, and similar flat props).
+
+## VITE_ASSET_BASE and assetUrl()
+
+All asset URLs in the editor source are built through the `assetUrl()` helper defined in `src/core/assetUrl.ts`:
+
+```ts
+const DATA_BASE: string = import.meta.env.BASE_URL;
+
+export function assetUrl(path: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path)) {
+    return path; // already absolute — return unchanged
+  }
+  return new URL(path.replace(/^\//, ''), new URL(DATA_BASE, window.location.origin)).href;
+}
+```
+
+At build time Vite substitutes `import.meta.env.BASE_URL` with the value of the `VITE_ASSET_BASE` environment variable. The default Vite base is `/`, so a local build resolves all asset paths against the same origin. A deploy build built with `VITE_ASSET_BASE=/assets/` resolves them against `/assets/`, which is where the R2 bucket is mounted in production.
+
+| Build command | `VITE_ASSET_BASE` | `assetUrl('/props/castle_old/library.xml')` resolves to |
+|---|---|---|
+| `npx vite build` | `/` (default) | `http://localhost:5173/props/castle_old/library.xml` |
+| `VITE_ASSET_BASE=/assets/ npx vite build` | `/assets/` | `https://example.com/assets/props/castle_old/library.xml` |
+
+## git LFS
+
+Binary files committed under `public/` are tracked by git Large File Storage (LFS). The `.gitattributes` rules cover all binary asset extensions:
+
+```
+public/**/*.3ds  filter=lfs diff=lfs merge=lfs -text
+public/**/*.jpg  filter=lfs diff=lfs merge=lfs -text
+public/**/*.png  filter=lfs diff=lfs merge=lfs -text
+public/**/*.mp3  filter=lfs diff=lfs merge=lfs -text
+public/**/*.wav  filter=lfs diff=lfs merge=lfs -text
+public/**/*.webp filter=lfs diff=lfs merge=lfs -text
+```
+
+Text files — map XML, `library.xml` descriptors, and the JSON registries — are stored as regular git objects so diffs remain readable.
+
+## scripts/sync-assets.mjs (monorepo use only)
+
+<Warning>
+  Do **not** run `scripts/sync-assets.mjs` in a standalone checkout of the editor package. The script expects the monorepo layout two directories up (`../../assets` for prop sources and `../../maps.json` for the map registry). Its first action is to **delete `public/` entirely** before rebuilding it. Running it outside the monorepo will erase the committed asset data.
+</Warning>
+
+Inside the monorepo, `sync-assets.mjs` is the mechanism that regenerates `public/` from the canonical source tree. It runs automatically as the `predev`, `prebuild`, and `prepreview` npm hooks. Its responsibilities are:
+
+1. **Wipe and recreate `public/`** from scratch on every run.
+2. **Determine which prop libraries to include** by reading the `bundled` map list from the root `maps.json`, parsing each map's XML, and collecting only the library names that are actually referenced. Libraries that no bundled map uses are excluded — they would ship megabytes of data nothing can load.
+3. **Copy and normalise asset files** — directory names and all filenames inside `props/` are lowercased so the client can construct URLs by simple concatenation.
+4. **Rewrite `library.xml` references** — mesh and texture filenames inside each library XML are lowercased in the output copy.
+5. **Write `editor-props.json`** with the sorted list of included libraries.
+6. **Copy map XML files** and **write `editor-maps.json`** with the filtered, path-corrected map list.
+
+The output layout of `sync-assets.mjs` is byte-identical to the `EDITOR data` section that the game's own `sync-assets.mjs` writes into `packages/game/public/`. Both targets read from the same R2 bucket in production — there is one shared upload, not two.

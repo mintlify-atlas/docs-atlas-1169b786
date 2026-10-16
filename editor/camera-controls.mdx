@@ -1,0 +1,101 @@
+---
+title: "Navigating the 3D Viewport in SkillTanki Editor"
+sidebarTitle: "Camera Controls"
+description: "Control the orbit camera with mouse and keyboard. Pan, rotate, dolly, and navigate using the original editor's shortcut keys."
+---
+
+The SkillTanki Editor uses an orbit camera rig that keeps a **target point** at the centre of interest while you rotate, pan, and dolly around it. The controls are a direct port of the original 2010 AIR editor's `WalkController` bindings, so the behaviour is immediately familiar to anyone who used the classic editor. The camera lives entirely in sim space — the same Z-up, 100-units-per-metre coordinate system used by all props — and is positioned under the `simRoot` entity that handles the PlayCanvas Y-up conversion.
+
+---
+
+## Camera Model
+
+The camera pose is stored as three values:
+
+| Parameter | Description |
+|---|---|
+| **Target** | The 3D point (in sim coordinates) that the camera orbits around |
+| **Yaw** | Horizontal rotation angle in degrees (0 = looking along +Y) |
+| **Pitch** | Vertical angle in degrees; negative values look downward |
+| **Distance** | Spherical radius from target to camera, in sim units |
+
+Every frame, these three values are used to compute the camera entity's world position and orientation via standard spherical-to-Cartesian conversion. Calling any of the movement methods recalculates and applies the transform immediately.
+
+### Starting Pose
+
+The editor opens with the camera positioned at the same coordinates published by the original editor:
+
+| Parameter | Value |
+|---|---|
+| Starting sim-space position | `(250, −7800, 4670)` |
+| Starting pitch | `−30°` |
+| Starting yaw | `0°` |
+
+When a map is loaded from the menu (or via the `?map=<id>` URL parameter), the camera automatically re-frames so the loaded map is centred in the viewport. This matters for maps with large absolute offsets — for example, Island sits roughly 8 500 sim units below the default origin, so without auto-framing the workspace would appear empty after loading.
+
+<Tip>
+  You can also load a specific bundled map by appending `?map=<id>` to the editor URL. When a map is loaded this way, the camera frames the bounding box of all placed props so the map is immediately visible.
+</Tip>
+
+### Pitch and Distance Limits
+
+| Constraint | Value |
+|---|---|
+| Minimum pitch | `−89°` (nearly straight down) |
+| Maximum pitch | `−1°` (nearly horizontal from above) |
+| Minimum distance | `300` sim units |
+| Maximum distance | `60 000` sim units |
+
+The pitch is clamped so the camera always looks downward into the map. The distance clamp prevents the camera from clipping through the map or zooming so far out that props become invisible.
+
+---
+
+## Mouse Controls
+
+| Input | Action |
+|---|---|
+| **Middle mouse button** drag | Pan — slides the orbit target in the camera's own screen plane |
+| **Alt + Middle mouse button** drag | Orbit — rotates the camera around the target (yaw and pitch) |
+| **Scroll wheel** | Dolly — zooms in (scroll up) or out (scroll down) by multiplying distance by 1/1.1 or 1.1 per tick |
+
+Panning scales with the current distance so that dragging a fixed number of pixels always moves the same apparent amount regardless of zoom level. Orbit sensitivity is 0.4 degrees per screen pixel horizontally (yaw) and 0.4 degrees per screen pixel vertically (pitch).
+
+---
+
+## Keyboard Controls
+
+Camera keyboard controls are driven by a held-key mapper that accumulates input every frame. Hold a key to continuously move or rotate the camera at a constant rate; release to stop.
+
+### Navigation keys
+
+| Key | Action | Rate |
+|---|---|---|
+| **N** | Yaw left (rotate camera counter-clockwise around target) | 90°/s |
+| **M** | Yaw right (rotate camera clockwise around target) | 90°/s |
+| **Numpad 9** | Tilt up (increase pitch, looking more horizontally) | 90°/s |
+| **Numpad 3** | Tilt down (decrease pitch, looking more steeply downward) | 90°/s |
+| **Numpad 8** | Move target forward (toward the camera's facing direction in XY) | 2000 units/s |
+| **Numpad 2** | Move target backward | 2000 units/s |
+| **Numpad 4** | Move target left (screen-space, accounts for yaw) | 2000 units/s |
+| **Numpad 6** | Move target right | 2000 units/s |
+| **Numpad +** | Zoom in (dolly, multiplies distance by 1/1.2 per second) | — |
+| **Numpad −** | Zoom out (dolly, multiplies distance by 1.2 per second) | — |
+
+Target movement with Numpad 8/2/4/6 is always relative to the current camera yaw, so pressing "forward" always moves the target in the direction the camera is facing in the horizontal plane, regardless of how you have orbited.
+
+---
+
+## Coordinate System Reference
+
+Understanding the coordinate system helps when reading position values in the status bar and map XML.
+
+| Concept | Value |
+|---|---|
+| Sim space orientation | Z-up (same as the tank game) |
+| Scale | 1 m = 100 sim units |
+| PlayCanvas world | Y-up; `simRoot` is rotated −90° about X to bridge the two conventions |
+| Placement lattice (XY) | 500 sim units (5 m) per step |
+| Placement lattice (Z) | 300 sim units (3 m) per step |
+| Occupancy cell size (XY) | 250 sim units (2.5 m) per cell |
+
+Positions stored in exported Tanks XML are raw sim-unit values with three decimal places. The camera target and all prop coordinates are expressed in the same sim-unit system.
