@@ -1,5 +1,5 @@
 ---
-title: "SkillTanki Editor Toolbar and Menu Reference"
+title: "SkillTanki Editor: Toolbar Buttons and Menu Reference"
 sidebarTitle: "Toolbar"
 description: "Reference for every toolbar button and menu item in SkillTanki Editor, including what each toggle controls and which menus map to keyboard shortcuts."
 ---
@@ -11,10 +11,10 @@ The toolbar sits directly below the menu bar and provides one-click access to th
 | Button ID | Label | Default | Action |
 |---|---|---|---|
 | `snap` | Snap | On | Toggle occupancy-grid snap mode. When on, props are seated on the 5 m×5 m×3 m placement lattice. |
-| `grid` | Show grid | On | Toggle the ground-plane grid mesh visible in the viewport. |
-| `textures` | Textures | Off | Show/hide the property panel — the texture variant picker for the currently selected tile props. |
-| `view` | Collision boxes | Off | Toggle collision view — draws the box, plane, and triangle collision primitives on every placed tile prop. |
-| `hideSelected` | Hide selected | — | Hides all currently selected props. Hidden props are excluded from picking until revealed again. |
+| `view` | View mode | Off | Toggle collision view — draws the box, plane, and triangle collision primitives on every placed tile prop. |
+| `grid` | Hide grid | On | Toggle the ground-plane grid mesh visible in the viewport. |
+| `textures` | Show property panel | Off | Show/hide the property panel — the texture variant picker for the currently selected tile props. |
+| `hideSelected` | Hide selected props | — | Hides all currently selected props. Hidden props are excluded from picking until revealed again. |
 | `showAll` | Show all | — | Restores visibility of all props that were previously hidden with **Hide selected**. |
 
 ## Menu Structure
@@ -27,8 +27,8 @@ The toolbar sits directly below the menu bar and provides one-click access to th
 | Open… | Ctrl+O | Open a `.lvl` file using the browser file picker. |
 | Save | Ctrl+S | Save the current level as a `.lvl` file (downloaded via the browser). |
 | Save as… | Ctrl+Alt+S | Save as `.lvl` — identical to **Save** in the current implementation. |
-| Import from Tanks | Ctrl+I | Import a Tanks XML map file (`.xml`) as the current document. |
 | Export to Tanks | Ctrl+T | Export the current level as Tanks XML, ready to load directly in the game. |
+| Import from Tanks | Ctrl+I | Import a Tanks XML map file (`.xml`) as the current document. |
 
 ### Edit
 
@@ -38,29 +38,34 @@ The toolbar sits directly below the menu bar and provides one-click access to th
 | Redo | Ctrl+Y | Re-apply the most recently undone event. |
 | Clear | Ctrl+Alt+C | Remove all props from the current document. |
 
+### Library
+
+| Menu item | Shortcut | Action |
+|---|---|---|
+| Clear and load… | Ctrl+Alt+L | *(No action — see note below.)* |
+| Load… | Ctrl+L | *(No action — see note below.)* |
+
+<Note>
+  The **Library** menu items (**Load…** and **Clear and load…**) are present for parity with the original AIR editor but have no action in the current implementation. Every prop library (Buildings, Builds, Castle, Complex Build, Elements, Land, Landscape, kahgel, kariz, yonje, zamin) is loaded automatically at startup, so manual library loading is not required.
+</Note>
+
 ### Option
 
 | Menu item | Shortcut | Action |
 |---|---|---|
-| Snap | — | Toggle snap mode (mirrors the **Snap** toolbar button). |
-| Show grid | — | Toggle the ground-plane grid (mirrors the **Show grid** toolbar button). |
-| Normal view | — | Switch to normal rendering mode; disables the collision box overlay. |
-| Collision boxes | — | Enable the collision box overlay (mirrors the **Collision boxes** toolbar button). |
 | Unlock | — | Set multiple-prop mode to **Unlock**: the selection is moved freely, ignoring the occupancy grid for the group. |
 | Lock group | — | Set multiple-prop mode to **Lock group**: props move together as a rigid group against the grid. |
 | Lock | — | Set multiple-prop mode to **Lock**: the selection is fully locked to the occupancy grid during moves. |
-| Library → Load… | Ctrl+L | *(No action — see note below.)* |
-| Library → Clear and load… | Ctrl+Alt+L | *(No action — see note below.)* |
+| Normal | — | Switch to normal rendering mode; disables the collision box overlay. |
+| Collision boxes | — | Enable the collision box overlay (mirrors the **View mode** toolbar button). |
+| Snap | — | Toggle snap mode (mirrors the **Snap** toolbar button). |
+| Show grid | — | Toggle the ground-plane grid (mirrors the **Hide grid** toolbar button). |
 
 ### Help
 
 | Menu item | Shortcut | Action |
 |---|---|---|
 | Help | — | Show the full shortcut reference in a browser dialog (`HELP_TEXT`). |
-
-<Note>
-  The **Library** sub-menu items (**Load…** and **Clear and load…**) are present for parity with the original AIR editor but have no action in the current implementation. Every prop library (Buildings, Builds, Castle, Complex Build, Elements, Land, Landscape, kahgel, kariz, yonje, zamin) is loaded automatically at startup, so manual library loading is not required.
-</Note>
 
 ## Selecting Prop Filter
 
@@ -69,6 +74,6 @@ The **Selecting prop** combo box at the right end of the toolbar controls which 
 | Option | Picks |
 |---|---|
 | All | Any prop type |
-| Tile | Tile and sprite mesh props only |
+| Tile | Tile mesh props only |
 | Sprite | Billboard sprite props only |
 | Bonus + Spawn | Functional props only (bonus regions, spawn points, CTF flags) |

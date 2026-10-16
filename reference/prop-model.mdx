@@ -1,5 +1,5 @@
 ---
-title: "Prop Data Model and PropKind Types"
+title: "SkillTanki Editor Prop Model: Fields, Kinds, Extents"
 sidebarTitle: "Prop Model"
 description: "Reference for the Prop class in SkillTanki Editor: fields, kinds, extent calculation, snap behavior, and the public methods used by EditorDocument."
 ---
@@ -20,7 +20,7 @@ export type PropKind = 'tile' | 'sprite' | 'spawn' | 'bonus' | 'flag';
 |---|---|
 | `tile` | A solid 3D mesh loaded from a `.3ds` file. Has named texture variants, contributes collision geometry to the exported XML, and occupies grid cells. |
 | `sprite` | A billboard quad (trees, bushes, and similar decoration). Uses a single PNG texture with an alpha channel. Sprites have zero-width extents and do **not** occupy any grid cells. |
-| `spawn` | A spawn-point gizmo with no real mesh. Drawn as a coloured semi-transparent box by `PropRenderer`. Uses fixed extents of H_BASE × H_BASE × V_BASE. Rotates in 5° steps instead of 90°. |
+| `spawn` | A spawn-point gizmo with no real mesh. Drawn as a coloured semi-transparent box by `PropRenderer`. Uses fixed extents of ±H_BASE on X and Y (H_BASE2 total footprint) and 0–V_BASE on Z. Rotates in 5° steps instead of 90°. |
 | `bonus` | A bonus-region gizmo. Carries a `types` Set that names the bonus type(s) the region grants. Min/max bounds are stored as `distancesX/Y/Z` extents relative to the prop's centre. |
 | `flag` | A CTF flag gizmo. The `name` field is always `'red_flag'` or `'blue_flag'`; this value selects the gizmo colour and the XML element tag used on export. |
 

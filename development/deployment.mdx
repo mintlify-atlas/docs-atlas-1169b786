@@ -25,7 +25,7 @@ Browser
         embedded/ui/life_*.png
 ```
 
-The bundle is built with `VITE_ASSET_BASE=/assets/` so every `assetUrl()` call in the source resolves paths against the R2 origin rather than the bundle's own origin.
+The bundle is built with `VITE_ASSET_BASE=/assets/`, the conventional marker that identifies a deploy build. In production, the R2 bucket is mounted at `/assets/`, so runtime fetches for prop libraries, maps, and registry files all land there.
 
 ## Full deploy workflow
 

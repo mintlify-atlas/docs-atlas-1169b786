@@ -1,5 +1,5 @@
 ---
-title: "SkillTanki Editor Source Architecture Overview"
+title: "SkillTanki Editor Architecture: TypeScript Modules"
 sidebarTitle: "Architecture"
 description: "A map of the SkillTanki Editor's TypeScript modules: core document model, PlayCanvas renderer, viewport input layer, I/O modules, and the engine copy."
 ---
@@ -43,7 +43,11 @@ The live level model. Corresponds to the original ActionScript editor's `PropsSc
 | `multiplePropMode: 0 \| 1 \| 2` | 0 = Unlock, 1 = Lock group (default), 2 = Lock — controls conflict detection during group moves. |
 | `addProp(prop, addToMap?)` | Adds a prop, attaches its entity, and enters it into the occupancy map. |
 | `deleteProps(props?)` | Removes props from the scene and the occupancy map. |
+| `clear()` | Removes all props, clears the selection, occupancy map, and journal; resets `changed` to `false`. |
 | `reoccupy(prop)` | Frees then re-enters a prop after its position changes. |
+| `isConflict(prop)` | Returns `true` if the prop conflicts with the occupancy map under the current `multiplePropMode`. |
+| `sync(prop)` | Pushes the prop's current `x`/`y`/`z`/`rotationZ` onto its PlayCanvas entity. |
+| `syncAll()` | Calls `sync` for every prop in the level. |
 | `undo() / redo()` | Reverses or replays the top journal entry. |
 | `toXml()` | Calls `exportTanksXml` — File → Export to Tanks. |
 | `toLvl()` | Calls `exportLvl` — File → Save. |

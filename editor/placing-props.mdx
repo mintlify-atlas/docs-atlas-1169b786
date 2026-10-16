@@ -126,7 +126,7 @@ Press **F** to toggle a horizontal mirror on the texture of all selected tiles.
 
 ## Snap Mode and Conflict Detection
 
-When snap mode is on (**⊓** toolbar button, default), every prop position is rounded to the nearest lattice point (500 sim units on XY, 300 on Z) before it is committed. The occupancy map tracks which cells each prop covers. A cell conflict is flagged whenever two props overlap in the same cell.
+When snap mode is on (**⊓** toolbar button, default), prop positions are snapped to the 500-unit XY lattice before being committed. Single-cell props are **rounded** to the nearest lattice point (500 sim units on XY); multi-cell props (those spanning more than one cell on an axis) are **floored** to the nearest lattice line instead. Height (Z) is always **floored** to the nearest 300-unit step. The occupancy map tracks which cells each prop covers. A cell conflict is flagged whenever two props overlap in the same cell.
 
 - **Cursor ghost**: turns red while hovering over an occupied cell.
 - **Q key**: selects all conflicting props already placed in the scene, so you can inspect or delete them.

@@ -105,7 +105,7 @@ Each library folder contains a `library.xml` (some older libraries use `library.
 
 A prop entry in the XML references a `.3ds` mesh file and one or more named diffuse texture variants, plus an optional opacity map for billboard sprites (trees, shrubs, and similar flat props).
 
-## VITE_ASSET_BASE and assetUrl()
+## assetUrl() and BASE\_URL
 
 All asset URLs in the editor source are built through the `assetUrl()` helper defined in `src/core/assetUrl.ts`:
 
@@ -120,12 +120,14 @@ export function assetUrl(path: string): string {
 }
 ```
 
-At build time Vite substitutes `import.meta.env.BASE_URL` with the value of the `VITE_ASSET_BASE` environment variable. The default Vite base is `/`, so a local build resolves all asset paths against the same origin. A deploy build built with `VITE_ASSET_BASE=/assets/` resolves them against `/assets/`, which is where the R2 bucket is mounted in production.
+`assetUrl()` reads `import.meta.env.BASE_URL`, which is Vite’s built-in constant populated from the `base` configuration option. In `vite.config.ts` this is hardcoded to `'/'`, so `BASE_URL` is always `/` regardless of any environment variables set on the command line.
 
-| Build command | `VITE_ASSET_BASE` | `assetUrl('/props/castle_old/library.xml')` resolves to |
+The deploy build command convention is `VITE_ASSET_BASE=/assets/ npx vite build`. Because it starts with `VITE_`, this variable is exposed in the compiled bundle as `import.meta.env.VITE_ASSET_BASE`, but `assetUrl()` does not read it — it reads `BASE_URL`, which remains `/`. The `/assets/` prefix is significant at the infrastructure level: it is the path at which the Cloudflare R2 bucket is mounted in production, so that all runtime fetches reach the correct store.
+
+| Build command | `import.meta.env.BASE_URL` | `assetUrl('/props/castle_old/library.xml')` resolves to |
 |---|---|---|
-| `npx vite build` | `/` (default) | `http://localhost:5173/props/castle_old/library.xml` |
-| `VITE_ASSET_BASE=/assets/ npx vite build` | `/assets/` | `https://example.com/assets/props/castle_old/library.xml` |
+| `npx vite build` | `/` | `http://localhost:5173/props/castle_old/library.xml` |
+| `VITE_ASSET_BASE=/assets/ npx vite build` | `/` | `http://localhost:5173/props/castle_old/library.xml` |
 
 ## git LFS
 

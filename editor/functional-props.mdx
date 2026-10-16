@@ -12,17 +12,14 @@ Functional props are map entities that carry gameplay meaning rather than geomet
 
 ---
 
-## Finding Functional Props in the Palette
+## How Functional Props Enter the Scene
 
-Functional props appear as a synthetic library called **Functional** in the Library combo at the top of the Props accordion. It is listed alongside the 11 regular mesh libraries (Buildings, Builds, Castle, etc.) and is selected from the same dropdown.
+Functional props are **not** selectable from the prop palette — the Library combo only lists the 11 mesh libraries (Buildings, Builds, Castle, etc.). Functional props enter the scene exclusively through the import path:
 
-The Functional library contains three groups:
+- **File → Import from Tanks** (`Ctrl+I`) — parses a Tanks XML map. Any `<spawn-points>`, `<bonus-regions>`, and `<ctf-flags>` elements are converted into `Prop` objects with `kind` set to `'spawn'`, `'bonus'`, or `'flag'` respectively, and placed in the viewport as procedural gizmos.
+- **File → Open** (`Ctrl+O`) — reads the editor's own `.lvl` binary format. Functional props that were previously saved in a `.lvl` file are restored in full.
 
-| Group | Props |
-|---|---|
-| **Spawn Points** | Named spawn types (e.g. `dm`, `team1`, `team2`) — names are used as the `type` attribute in the exported XML |
-| **Bonus Regions** | Bonus pickup zones; configurable bonus types via the property panel |
-| **Flags** | `red_flag` and `blue_flag` for Capture the Flag maps |
+Once in the scene, functional props behave exactly like any other prop: they are selectable, moveable, rotatable, deletable, and undoable.
 
 ---
 
@@ -32,8 +29,8 @@ The Functional library contains three groups:
 |---|---|---|
 | Mesh source | `.3ds` file from a prop library | None — drawn as a procedural gizmo |
 | Texture variants | Yes | No |
-| Occupancy extents | Measured from vertex positions | Fixed: `H_BASE` (250 sim units) on XY, `V_BASE` (300 sim units) on Z |
-| Rotation | 90° steps | Spawn points: 5° steps; flags: fixed |
+| Occupancy extents | Measured from vertex positions | Fixed: XY −250 to 250 (`H_BASE`), Z 0 to 300 (`V_BASE`) |
+| Rotation | 90° steps | Spawn points: 5° steps; flags: 90° steps |
 | Exported XML section | `<static-geometry>` | `<spawn-points>`, `<bonus-regions>`, or `<ctf-flags>` |
 
 Because functional props use fixed extents (matching the original `Spawn.as` and `Flag.as` constants), they always occupy exactly one occupancy cell regardless of visual size.
@@ -42,13 +39,9 @@ Because functional props use fixed extents (matching the original `Spawn.as` and
 
 ## Spawn Points
 
-A spawn point defines where a tank enters the match. To place one:
+A spawn point defines where a tank enters the match. Each spawn point's **name** (e.g. `dm`, `team1`, `team2`) is recorded as-is in the imported XML and becomes the `type` attribute in the exported `<spawn-point>` element.
 
-1. Select the **Functional** library from the Library combo.
-2. Click a spawn type cell in the **Spawn Points** group — the prop attaches to the cursor.
-3. Move the cursor to the desired location in the workspace and press **Space** to place it.
-
-The **prop name** (`dm`, `team1`, `team2`, etc.) becomes the `type` attribute in the exported `<spawn-point>` element:
+The **prop name** becomes the `type` attribute in the exported XML:
 
 ```xml
 <spawn-point type="dm" free="false">
@@ -109,12 +102,12 @@ When importing a Tanks XML that already contains `<bonus-region>` entries, the e
 
 ## CTF Flags
 
-CTF (Capture the Flag) maps require exactly one red flag and one blue flag. The editor exposes these as two prop cells in the **Flags** group of the Functional library:
+CTF (Capture the Flag) maps require exactly one red flag and one blue flag. These are imported from the `<ctf-flags>` section of a Tanks XML map and appear in the viewport as coloured gizmos:
 
-| Prop name | Exported element |
-|---|---|
-| `red_flag` | `<flag-red>` inside `<ctf-flags>` |
-| `blue_flag` | `<flag-blue>` inside `<ctf-flags>` |
+| Prop name | Gizmo colour | Exported element |
+|---|---|---|
+| `red_flag` | Red | `<flag-red>` inside `<ctf-flags>` |
+| `blue_flag` | Blue | `<flag-blue>` inside `<ctf-flags>` |
 
 Flags carry only a position — they have no rotation, no texture, and no bonus type. The exported `<ctf-flags>` block is created automatically the first time a flag is written:
 
@@ -140,7 +133,7 @@ Flags carry only a position — they have no rotation, no texture, and no bonus 
 All three functional prop types survive the full edit cycle:
 
 1. **Import from Tanks** (`Ctrl+I`) — `<spawn-points>`, `<bonus-regions>`, and `<ctf-flags>` are parsed into `Prop` objects with `kind` set to `'spawn'`, `'bonus'`, and `'flag'` respectively. Each is placed in the viewport as a gizmo.
-2. **Save / Open** (`Ctrl+S` / `Ctrl+O`) — functional props are written into the editor's `.lvl` binary format and read back without loss.
+2. **Save / Open** (`Ctrl+S` / `Ctrl+O`) — functional props are written into the editor's `.lvl` binary format under the internal `'Functional'` library name and read back without loss.
 3. **Export to Tanks** (`Ctrl+T`) — functional props are written into their correct sections of the Tanks XML. The element order, attribute names, and number formatting match the shipped maps exactly (positions to 3 decimal places, rotations to 6).
 
 There is no separate step or flag to enable functional-prop support — they behave the same as any other prop in the editor (selectable, moveable, rotatable, deletable, undoable).

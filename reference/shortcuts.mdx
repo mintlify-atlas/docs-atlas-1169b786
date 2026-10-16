@@ -1,5 +1,5 @@
 ---
-title: "SkillTanki Editor Keyboard Shortcut Reference"
+title: "SkillTanki Editor: Complete Keyboard Shortcut Reference"
 sidebarTitle: "Shortcuts"
 description: "Complete keyboard shortcut reference for SkillTanki Editor. Covers prop manipulation, camera navigation, file operations, and view toggles."
 ---
@@ -13,8 +13,7 @@ The SkillTanki Editor uses the same shortcut bindings as the original 2010 AIR l
 | Space | Place (paste) the cursor prop |
 | Esc | Deselect / drop cursor prop |
 | Delete or C | Delete selected props |
-| X | Rotate clockwise 90° (5° for spawn points) |
-| Z | Rotate counter-clockwise 90° |
+| X or Z | Rotate selected prop or cursor |
 | Arrow keys | Move selected props in XY |
 | Drag | Move selected props |
 | Shift + drag | Copy selected props |
@@ -30,12 +29,10 @@ The SkillTanki Editor uses the same shortcut bindings as the original 2010 AIR l
 |---|---|
 | Middle mouse | Pan |
 | Alt + middle mouse | Orbit (rotate) |
-| Scroll wheel | Zoom (dolly) |
-| N | Yaw left |
-| M | Yaw right |
+| N or M | Rotate camera |
 | Numpad 8 / 2 | Move camera forward / backward |
 | Numpad 4 / 6 | Move camera left / right |
-| Numpad 9 / 3 | Tilt up / down |
+| Numpad 9 / 3 | Tilt camera |
 | Numpad + / − | Zoom in / out |
 
 ## File Operations
@@ -51,6 +48,17 @@ The SkillTanki Editor uses the same shortcut bindings as the original 2010 AIR l
 | Ctrl+Z | Undo |
 | Ctrl+Y | Redo |
 | Ctrl+Alt+C | Clear all props |
+
+## Library
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+L | Load… *(no action — see note below)* |
+| Ctrl+Alt+L | Clear and load… *(no action — see note below)* |
+
+<Note>
+  The **Library** menu items (**Load…** and **Clear and load…**) have keyboard shortcuts registered in the menu model but no action in the current implementation. Every prop library is loaded automatically at startup, so manual library loading is not required.
+</Note>
 
 ## Help
 
